@@ -110,7 +110,7 @@ String uartBuf = "";
 // Init pantalla — secuencia obligatoria
 // ---------------------------------------------------------------
 void initDisplay() {
-    Wire.begin(7, 15);
+    Wire.begin(15, 7);   // SDA=15, SCL=7 (verificado contra esquemático)
     I2C_Write_EXIO(TCA9554_OUTPUT_REG, 0x05);
     TCA9554PWR_Init(0x00);
     delay(20);
