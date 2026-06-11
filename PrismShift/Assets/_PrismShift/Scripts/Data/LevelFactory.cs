@@ -4,8 +4,11 @@ using UnityEngine;
 namespace PrismShift
 {
     /// <summary>
-    /// Crea los 10 niveles en código. Se usa como fallback cuando no existen
-    /// los ScriptableObject en Resources/Levels (útil en build sin setup previo).
+    /// Diseño de niveles basado en la referencia visual:
+    /// - Columna 4 (derecha) = columna fija de portales, uno por fila
+    /// - Columnas 0-3 = área de juego con orbes y bloqueos
+    /// - El jugador desliza filas hacia la derecha para meter orbes en portales
+    /// - Los movimientos verticales permiten reorganizar qué orbe queda en qué fila
     /// </summary>
     public static class LevelFactory
     {
@@ -18,153 +21,171 @@ namespace PrismShift
             };
         }
 
-        // ── Nivel 1 ─────────────────────────────────────────────────────────
-        // Un orbe rojo que hay que llevar al portal rojo. Sin obstáculos.
+        // ── NIVEL 1 ──────────────────────────────────────────────────────────
+        // Tutorial: un orbe rojo en fila 2, portal rojo en (4,2).
+        // Solo hay que hacer un swipe derecha. Sin bloqueos.
         private static LevelData Level01()
         {
-            var d = Make(1, moveLimit: 5);
-            d.orbs.Add(Orb(OrbColor.Red, 0, 2));
+            var d = Make(1, moveLimit: 3);
             d.portals.Add(Portal(OrbColor.Red, 4, 2));
+            d.orbs.Add(Orb(OrbColor.Red, 1, 2));
             return d;
         }
 
-        // ── Nivel 2 ─────────────────────────────────────────────────────────
-        // Dos colores, introducción a la coordinación.
+        // ── NIVEL 2 ──────────────────────────────────────────────────────────
+        // Dos colores. Los orbes están en columna 0, portales en columna 4.
+        // El jugador necesita alinear y deslizar.
         private static LevelData Level02()
         {
-            var d = Make(2, moveLimit: 8);
-            d.orbs.Add(Orb(OrbColor.Red,  0, 1));
-            d.orbs.Add(Orb(OrbColor.Blue, 0, 3));
+            var d = Make(2, moveLimit: 6);
             d.portals.Add(Portal(OrbColor.Red,  4, 1));
             d.portals.Add(Portal(OrbColor.Blue, 4, 3));
+            d.orbs.Add(Orb(OrbColor.Red,  0, 1));
+            d.orbs.Add(Orb(OrbColor.Blue, 0, 3));
             return d;
         }
 
-        // ── Nivel 3 ─────────────────────────────────────────────────────────
-        // Introduce movimiento vertical (portales en columnas diferentes).
+        // ── NIVEL 3 ──────────────────────────────────────────────────────────
+        // Introduce movimiento vertical. Los orbes están en filas incorrectas,
+        // hay que subirlos/bajarlos antes de deslizar a la derecha.
         private static LevelData Level03()
         {
-            var d = Make(3, moveLimit: 10);
-            d.orbs.Add(Orb(OrbColor.Red,   1, 0));
-            d.orbs.Add(Orb(OrbColor.Green, 3, 4));
-            d.portals.Add(Portal(OrbColor.Red,   1, 4));
-            d.portals.Add(Portal(OrbColor.Green, 3, 0));
+            var d = Make(3, moveLimit: 8);
+            d.portals.Add(Portal(OrbColor.Red,   4, 0));
+            d.portals.Add(Portal(OrbColor.Green, 4, 4));
+            // Orbes en filas equivocadas — hay que mover verticalmente primero
+            d.orbs.Add(Orb(OrbColor.Red,   1, 4)); // está abajo, portal arriba
+            d.orbs.Add(Orb(OrbColor.Green, 1, 0)); // está arriba, portal abajo
             return d;
         }
 
-        // ── Nivel 4 ─────────────────────────────────────────────────────────
-        // Más orbes, movimientos más limitados.
+        // ── NIVEL 4 ──────────────────────────────────────────────────────────
+        // Tres colores. Los orbes empiezan mezclados entre filas.
         private static LevelData Level04()
         {
-            var d = Make(4, moveLimit: 12);
-            d.orbs.Add(Orb(OrbColor.Red,    0, 0));
+            var d = Make(4, moveLimit: 10);
+            d.portals.Add(Portal(OrbColor.Red,    4, 0));
+            d.portals.Add(Portal(OrbColor.Blue,   4, 2));
+            d.portals.Add(Portal(OrbColor.Yellow, 4, 4));
+            d.orbs.Add(Orb(OrbColor.Yellow, 0, 0));
+            d.orbs.Add(Orb(OrbColor.Red,    0, 2));
             d.orbs.Add(Orb(OrbColor.Blue,   0, 4));
-            d.orbs.Add(Orb(OrbColor.Green,  4, 0));
-            d.orbs.Add(Orb(OrbColor.Yellow, 4, 4));
-            d.portals.Add(Portal(OrbColor.Red,    4, 4));
-            d.portals.Add(Portal(OrbColor.Blue,   4, 0));
-            d.portals.Add(Portal(OrbColor.Green,  0, 4));
-            d.portals.Add(Portal(OrbColor.Yellow, 0, 0));
             return d;
         }
 
-        // ── Nivel 5 ─────────────────────────────────────────────────────────
-        // Primer bloqueo central que fuerza rodear.
+        // ── NIVEL 5 ──────────────────────────────────────────────────────────
+        // Primer bloqueo. Una celda bloqueada en el camino de una fila
+        // obliga a rodear usando movimientos verticales.
         private static LevelData Level05()
         {
             var d = Make(5, moveLimit: 10);
-            d.orbs.Add(Orb(OrbColor.Red,  0, 2));
-            d.orbs.Add(Orb(OrbColor.Blue, 4, 2));
-            d.portals.Add(Portal(OrbColor.Red,  4, 2));
-            d.portals.Add(Portal(OrbColor.Blue, 0, 2));
-            d.blockedCells.Add(new Vector2Int(2, 2)); // centro bloqueado
+            d.portals.Add(Portal(OrbColor.Red,  4, 1));
+            d.portals.Add(Portal(OrbColor.Blue, 4, 3));
+            d.orbs.Add(Orb(OrbColor.Red,  0, 1));
+            d.orbs.Add(Orb(OrbColor.Blue, 0, 3));
+            d.blockedCells.Add(new Vector2Int(2, 1)); // bloquea la ruta directa del rojo
             return d;
         }
 
-        // ── Nivel 6 ─────────────────────────────────────────────────────────
-        // Tres colores, planificación necesaria.
+        // ── NIVEL 6 ──────────────────────────────────────────────────────────
+        // Cuatro portales (filas 0-3). Los orbes están en columnas 1 y 2,
+        // intercalados — hay que coordinar verticales y horizontales.
         private static LevelData Level06()
         {
-            var d = Make(6, moveLimit: 14);
-            d.orbs.Add(Orb(OrbColor.Red,    0, 0));
-            d.orbs.Add(Orb(OrbColor.Blue,   2, 2));
-            d.orbs.Add(Orb(OrbColor.Green,  4, 4));
-            d.portals.Add(Portal(OrbColor.Red,   4, 0));
-            d.portals.Add(Portal(OrbColor.Blue,  2, 4));
-            d.portals.Add(Portal(OrbColor.Green, 0, 4));
+            var d = Make(6, moveLimit: 12);
+            d.portals.Add(Portal(OrbColor.Red,    4, 0));
+            d.portals.Add(Portal(OrbColor.Blue,   4, 1));
+            d.portals.Add(Portal(OrbColor.Green,  4, 2));
+            d.portals.Add(Portal(OrbColor.Yellow, 4, 3));
+            d.orbs.Add(Orb(OrbColor.Green,  1, 0));
+            d.orbs.Add(Orb(OrbColor.Red,    1, 1));
+            d.orbs.Add(Orb(OrbColor.Yellow, 2, 2));
+            d.orbs.Add(Orb(OrbColor.Blue,   2, 3));
             return d;
         }
 
-        // ── Nivel 7 ─────────────────────────────────────────────────────────
-        // Tres colores + dos bloqueos en diagonal.
+        // ── NIVEL 7 ──────────────────────────────────────────────────────────
+        // Tres colores + bloqueo en posición estratégica que corta dos caminos.
         private static LevelData Level07()
         {
             var d = Make(7, moveLimit: 14);
-            d.orbs.Add(Orb(OrbColor.Red,    0, 1));
-            d.orbs.Add(Orb(OrbColor.Yellow, 1, 0));
-            d.orbs.Add(Orb(OrbColor.Purple, 0, 3));
-            d.portals.Add(Portal(OrbColor.Red,    4, 1));
-            d.portals.Add(Portal(OrbColor.Yellow, 4, 0));
-            d.portals.Add(Portal(OrbColor.Purple, 4, 3));
+            d.portals.Add(Portal(OrbColor.Purple, 4, 0));
+            d.portals.Add(Portal(OrbColor.Red,    4, 2));
+            d.portals.Add(Portal(OrbColor.Cyan,   4, 4));
+            d.orbs.Add(Orb(OrbColor.Red,    0, 0));
+            d.orbs.Add(Orb(OrbColor.Cyan,   0, 2));
+            d.orbs.Add(Orb(OrbColor.Purple, 0, 4));
+            d.blockedCells.Add(new Vector2Int(2, 0));
             d.blockedCells.Add(new Vector2Int(2, 2));
-            d.blockedCells.Add(new Vector2Int(3, 1));
             return d;
         }
 
-        // ── Nivel 8 ─────────────────────────────────────────────────────────
-        // Bloqueos que obligan a pensar el orden de movimientos.
+        // ── NIVEL 8 ──────────────────────────────────────────────────────────
+        // Portales en las 5 filas. Los orbes están dispersos, dos bloqueos
+        // en columnas intermedias que obligan a planificar el orden.
         private static LevelData Level08()
         {
             var d = Make(8, moveLimit: 16);
-            d.orbs.Add(Orb(OrbColor.Red,  0, 0));
-            d.orbs.Add(Orb(OrbColor.Blue, 0, 4));
-            d.orbs.Add(Orb(OrbColor.Cyan, 2, 2));
-            d.portals.Add(Portal(OrbColor.Red,  4, 4));
-            d.portals.Add(Portal(OrbColor.Blue, 4, 0));
-            d.portals.Add(Portal(OrbColor.Cyan, 4, 2));
-            d.blockedCells.Add(new Vector2Int(2, 0));
-            d.blockedCells.Add(new Vector2Int(2, 4));
-            d.blockedCells.Add(new Vector2Int(3, 2));
-            return d;
-        }
-
-        // ── Nivel 9 ─────────────────────────────────────────────────────────
-        // Menos movimientos, todo cuenta.
-        private static LevelData Level09()
-        {
-            var d = Make(9, moveLimit: 10);
-            d.orbs.Add(Orb(OrbColor.Red,    0, 0));
-            d.orbs.Add(Orb(OrbColor.Green,  0, 2));
-            d.orbs.Add(Orb(OrbColor.Yellow, 0, 4));
             d.portals.Add(Portal(OrbColor.Red,    4, 0));
+            d.portals.Add(Portal(OrbColor.Blue,   4, 1));
             d.portals.Add(Portal(OrbColor.Green,  4, 2));
-            d.portals.Add(Portal(OrbColor.Yellow, 4, 4));
+            d.portals.Add(Portal(OrbColor.Yellow, 4, 3));
+            d.portals.Add(Portal(OrbColor.Purple, 4, 4));
+            d.orbs.Add(Orb(OrbColor.Purple, 0, 0));
+            d.orbs.Add(Orb(OrbColor.Red,    0, 1));
+            d.orbs.Add(Orb(OrbColor.Yellow, 1, 2));
+            d.orbs.Add(Orb(OrbColor.Green,  0, 3));
+            d.orbs.Add(Orb(OrbColor.Blue,   0, 4));
             d.blockedCells.Add(new Vector2Int(2, 1));
             d.blockedCells.Add(new Vector2Int(2, 3));
             return d;
         }
 
-        // ── Nivel 10 ────────────────────────────────────────────────────────
-        // Nivel más desafiante del prototipo. Cuatro colores, bloqueos múltiples.
+        // ── NIVEL 9 ──────────────────────────────────────────────────────────
+        // Movimientos muy contados. Portales en 5 filas, orbes ya en columna 2
+        // pero en orden incorrecto — el jugador debe reordenar primero.
+        private static LevelData Level09()
+        {
+            var d = Make(9, moveLimit: 12);
+            d.portals.Add(Portal(OrbColor.Red,    4, 0));
+            d.portals.Add(Portal(OrbColor.Blue,   4, 1));
+            d.portals.Add(Portal(OrbColor.Green,  4, 2));
+            d.portals.Add(Portal(OrbColor.Yellow, 4, 3));
+            d.portals.Add(Portal(OrbColor.Cyan,   4, 4));
+            // Orbes en orden invertido — mínimos movimientos para reordenar
+            d.orbs.Add(Orb(OrbColor.Cyan,   2, 0));
+            d.orbs.Add(Orb(OrbColor.Yellow, 2, 1));
+            d.orbs.Add(Orb(OrbColor.Green,  2, 2));
+            d.orbs.Add(Orb(OrbColor.Blue,   2, 3));
+            d.orbs.Add(Orb(OrbColor.Red,    2, 4));
+            d.blockedCells.Add(new Vector2Int(3, 0));
+            d.blockedCells.Add(new Vector2Int(3, 4));
+            return d;
+        }
+
+        // ── NIVEL 10 ─────────────────────────────────────────────────────────
+        // Nivel más complejo del prototipo. Portales en las 5 filas,
+        // orbes muy dispersos, tres bloqueos que fragmentan las rutas.
         private static LevelData Level10()
         {
             var d = Make(10, moveLimit: 18);
-            d.orbs.Add(Orb(OrbColor.Red,    0, 0));
-            d.orbs.Add(Orb(OrbColor.Blue,   0, 4));
-            d.orbs.Add(Orb(OrbColor.Green,  4, 0));
-            d.orbs.Add(Orb(OrbColor.Purple, 4, 4));
-            d.portals.Add(Portal(OrbColor.Red,    4, 4));
-            d.portals.Add(Portal(OrbColor.Blue,   4, 0));
-            d.portals.Add(Portal(OrbColor.Green,  0, 4));
-            d.portals.Add(Portal(OrbColor.Purple, 0, 0));
-            d.blockedCells.Add(new Vector2Int(1, 2));
-            d.blockedCells.Add(new Vector2Int(2, 1));
-            d.blockedCells.Add(new Vector2Int(2, 3));
-            d.blockedCells.Add(new Vector2Int(3, 2));
+            d.portals.Add(Portal(OrbColor.Red,    4, 0));
+            d.portals.Add(Portal(OrbColor.Purple, 4, 1));
+            d.portals.Add(Portal(OrbColor.Blue,   4, 2));
+            d.portals.Add(Portal(OrbColor.Green,  4, 3));
+            d.portals.Add(Portal(OrbColor.Yellow, 4, 4));
+            d.orbs.Add(Orb(OrbColor.Yellow,  0, 0));
+            d.orbs.Add(Orb(OrbColor.Red,     3, 1));
+            d.orbs.Add(Orb(OrbColor.Green,   0, 2));
+            d.orbs.Add(Orb(OrbColor.Purple,  1, 3));
+            d.orbs.Add(Orb(OrbColor.Blue,    2, 4));
+            d.blockedCells.Add(new Vector2Int(1, 0));
+            d.blockedCells.Add(new Vector2Int(2, 2));
+            d.blockedCells.Add(new Vector2Int(1, 4));
             return d;
         }
 
-        // ── Helpers ─────────────────────────────────────────────────────────
+        // ── Helpers ──────────────────────────────────────────────────────────
 
         private static LevelData Make(int number, int moveLimit)
         {
