@@ -100,21 +100,35 @@ namespace PrismShift
         {
             int next = CurrentLevelIndex + 1;
             if (LevelManager.Instance != null && next < LevelManager.Instance.LevelCount)
-                StartLevel(next);
+            {
+                // Modo panel (WebGL / single scene)
+                if (GameBootstrapper.Instance != null)
+                    GameBootstrapper.Instance.StartLevel(next);
+                else
+                    StartLevel(next);
+            }
             else
+            {
                 GoToMainMenu();
+            }
         }
 
         public void GoToMainMenu()
         {
             SetState(GameState.MainMenu);
-            SceneFlowManager.Instance?.LoadMainMenu();
+            if (GameBootstrapper.Instance != null)
+                GameBootstrapper.Instance.ShowMainMenu();
+            else
+                SceneFlowManager.Instance?.LoadMainMenu();
         }
 
         public void GoToLevelSelect()
         {
             SetState(GameState.LevelSelect);
-            SceneFlowManager.Instance?.LoadLevelSelect();
+            if (GameBootstrapper.Instance != null)
+                GameBootstrapper.Instance.ShowLevelSelect();
+            else
+                SceneFlowManager.Instance?.LoadLevelSelect();
         }
 
         public void SetPaused(bool paused)
