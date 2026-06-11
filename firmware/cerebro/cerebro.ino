@@ -135,9 +135,10 @@ void sendBola(const Bola &b) {
 }
 
 void sendGPS() {
-    char buf[48];
-    snprintf(buf, sizeof(buf), "GPS,%.6f,%.6f,%d\n",
-             myLat, myLon, myFix ? 1 : 0);
+    char buf[56];
+    uint8_t sats = gps.satellites.isValid() ? (uint8_t)gps.satellites.value() : 0;
+    snprintf(buf, sizeof(buf), "GPS,%.6f,%.6f,%d,%d\n",
+             myLat, myLon, myFix ? 1 : 0, sats);
     Serial.print(buf);
 }
 
