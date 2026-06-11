@@ -49,5 +49,5 @@ Total:                       ~34.5mm
 
 - La antena FPC GPS se pega en la tapa trasera con su adhesivo. El cable pasa por dentro hasta el conector IPEX del NEO-M8N. No poner metal ni tornillos metálicos en esa zona.
 - La antena LoRa lambda/4 mide 16.4cm — valorar si sale por taladro lateral o va enrollada dentro.
-- Interruptor de encendido: pendiente de decisión.
+- Microinterruptor de encendido: taladro 6×3mm en lateral.
 - No usar relleno metálico ni pintura conductora en la zona de la antena GPS.
