@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Idle Clicker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <div id="app">
+
+    <header class="game-header">
+      <h1 class="game-title">⛏ Idle Clicker</h1>
+      <div class="world-badge">Mundo <span id="current-world">1</span> — Pradera Inicial</div>
+    </header>
+
+    <main class="game-layout">
+
+      <!-- Panel de estadísticas -->
+      <aside class="stats-panel">
+        <h2 class="panel-title">Estadísticas</h2>
+
+        <div class="stat-row">
+          <span class="stat-label">Puntos</span>
+          <span class="stat-value" id="points">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Por click</span>
+          <span class="stat-value" id="points-per-click">1</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Por segundo</span>
+          <span class="stat-value" id="points-per-second">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Clicks totales</span>
+          <span class="stat-value" id="total-clicks">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Total ganado</span>
+          <span class="stat-value" id="total-points">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Tiempo jugado</span>
+          <span class="stat-value" id="play-time">0h 0m 0s</span>
+        </div>
+      </aside>
+
+      <!-- Zona central de click -->
+      <section class="click-zone">
+        <div class="click-wrapper">
+          <button id="main-click-btn" class="click-btn" aria-label="Hacer click para ganar puntos">
+            <span class="click-icon">⛏</span>
+            <span class="click-label">¡Click!</span>
+          </button>
+          <div id="float-container" class="float-container" aria-hidden="true"></div>
+        </div>
+        <p class="click-hint">Cada click = <strong id="hint-ppc">1</strong> punto</p>
+      </section>
+
+      <!-- Panel derecho (reservado para fases futuras) -->
+      <aside class="right-panel">
+        <h2 class="panel-title">Próximamente</h2>
+        <p class="coming-soon">Generadores, mejoras, mundos y más llegarán en las siguientes fases.</p>
+      </aside>
+
+    </main>
+
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
