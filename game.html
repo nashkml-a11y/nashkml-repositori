@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Idle Clicker</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:          #0d1117;
+  --surface:     #161b22;
+  --surface-2:   #21262d;
+  --border:      #30363d;
+  --text:        #e6edf3;
+  --text-muted:  #8b949e;
+  --accent:      #f0c040;
+  --accent-glow: rgba(240, 192, 64, 0.35);
+  --transition:  0.15s ease;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+#app { display: flex; flex-direction: column; min-height: 100vh; }
+
+/* Header */
+.game-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.game-title { font-size: 1.4rem; font-weight: 700; color: var(--accent); letter-spacing: 0.03em; }
+.world-badge {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 14px;
+}
+
+/* Layout */
+.game-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr 220px;
+  flex: 1;
+}
+
+/* Panels */
+.stats-panel, .right-panel {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 20px 16px;
+}
+.right-panel { border-right: none; border-left: 1px solid var(--border); }
+
+.panel-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Stats */
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+.stat-row:last-child { border-bottom: none; }
+.stat-label { color: var(--text-muted); font-size: 0.82rem; }
+.stat-value { font-weight: 700; font-size: 0.95rem; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+/* Click zone */
+.click-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 40px 20px;
+  position: relative;
+}
+.click-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.click-btn {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  border: 3px solid var(--accent);
+  background: radial-gradient(circle at 40% 35%, #3a2e00, #1a1500);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 0 24px var(--accent-glow), inset 0 2px 6px rgba(255,255,255,0.05);
+  transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.click-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 40px var(--accent-glow), inset 0 2px 6px rgba(255,255,255,0.08);
+  border-color: #ffe080;
+}
+.click-btn:active {
+  transform: scale(0.93);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+.click-icon { font-size: 3rem; line-height: 1; display: block; transition: transform 0.1s ease; }
+.click-btn:active .click-icon { transform: rotate(-15deg) scale(0.9); }
+.click-label { font-size: 1rem; font-weight: 700; color: var(--accent); letter-spacing: 0.06em; text-transform: uppercase; }
+.click-hint { font-size: 0.85rem; color: var(--text-muted); }
+.click-hint strong { color: var(--accent); }
+
+/* Float text */
+.float-container {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.float-text {
+  position: absolute;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--accent);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+  animation: floatUp 0.9s ease-out forwards;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+@keyframes floatUp {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  60%  { opacity: 1; transform: translateY(-50px) scale(1.1); }
+  100% { opacity: 0; transform: translateY(-90px) scale(0.8); }
+}
+
+.coming-soon { font-size: 0.82rem; color: var(--text-muted); line-height: 1.6; margin-top: 8px; }
+
+/* Responsive */
+@media (max-width: 720px) {
+  .game-layout { grid-template-columns: 1fr; }
+  .right-panel { border-left: none; border-top: 1px solid var(--border); }
+  .stats-panel { border-right: none; border-bottom: 1px solid var(--border); }
+  .click-zone { padding: 30px 16px; }
+}
+@media (max-width: 480px) {
+  .game-header { flex-direction: column; gap: 6px; text-align: center; }
+  .click-btn { width: 150px; height: 150px; }
+  .click-icon { font-size: 2.4rem; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="game-header">
+    <h1 class="game-title">⛏ Idle Clicker</h1>
+    <div class="world-badge">Mundo <span id="current-world">1</span> — Pradera Inicial</div>
+  </header>
+
+  <main class="game-layout">
+
+    <aside class="stats-panel">
+      <h2 class="panel-title">Estadísticas</h2>
+      <div class="stat-row">
+        <span class="stat-label">Puntos</span>
+        <span class="stat-value" id="points">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Por click</span>
+        <span class="stat-value" id="points-per-click">1</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Por segundo</span>
+        <span class="stat-value" id="points-per-second">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Clicks totales</span>
+        <span class="stat-value" id="total-clicks">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Total ganado</span>
+        <span class="stat-value" id="total-points">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Tiempo jugado</span>
+        <span class="stat-value" id="play-time">0h 0m 0s</span>
+      </div>
+    </aside>
+
+    <section class="click-zone">
+      <div class="click-wrapper">
+        <button id="main-click-btn" class="click-btn" aria-label="Hacer click para ganar puntos">
+          <span class="click-icon">⛏</span>
+          <span class="click-label">¡Click!</span>
+        </button>
+        <div id="float-container" class="float-container" aria-hidden="true"></div>
+      </div>
+      <p class="click-hint">Cada click = <strong id="hint-ppc">1</strong> punto</p>
+    </section>
+
+    <aside class="right-panel">
+      <h2 class="panel-title">Próximamente</h2>
+      <p class="coming-soon">Generadores, mejoras, mundos y más llegarán en las siguientes fases.</p>
+    </aside>
+
+  </main>
+</div>
+
+<script>
+'use strict';
+
+const gameState = {
+  points:            0,
+  totalPoints:       0,
+  totalClicks:       0,
+  baseClickValue:    1,
+  clickMultiplier:   1,
+  rebirthMultiplier: 1,
+  currentWorld:      1,
+  playTime:          0,
+  generators:        [],
+  upgrades:          [],
+  achievements:      [],
+  missions:          []
+};
+
+function getPointsPerClick() {
+  return gameState.baseClickValue * gameState.clickMultiplier * gameState.rebirthMultiplier;
+}
+
+function getPointsPerSecond() {
+  let pps = 0;
+  for (const gen of gameState.generators) {
+    if (gen.owned > 0) pps += (gen.owned * gen.power * gen.level) / gen.speed;
+  }
+  return pps;
+}
+
+function addPoints(amount) {
+  gameState.points      += amount;
+  gameState.totalPoints += amount;
+}
+
+function handleClick(event) {
+  const earned = getPointsPerClick();
+  addPoints(earned);
+  gameState.totalClicks++;
+  spawnFloatText(event, earned);
+  updateUI();
+}
+
+function updateUI() {
+  const ppc = getPointsPerClick();
+  const pps = getPointsPerSecond();
+  setText('points',            formatNumber(gameState.points));
+  setText('total-points',      formatNumber(gameState.totalPoints));
+  setText('points-per-click',  formatNumber(ppc));
+  setText('points-per-second', formatNumber(pps));
+  setText('total-clicks',      formatNumber(gameState.totalClicks));
+  setText('current-world',     gameState.currentWorld);
+  setText('play-time',         formatTime(gameState.playTime));
+  setText('hint-ppc',          formatNumber(ppc));
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function spawnFloatText(event, amount) {
+  const container = document.getElementById('float-container');
+  if (!container) return;
+  const rect = container.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  const el = document.createElement('span');
+  el.className = 'float-text';
+  el.textContent = '+' + formatNumber(amount);
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+  container.appendChild(el);
+  el.addEventListener('animationend', () => el.remove(), { once: true });
+}
+
+function gameLoop() {
+  gameState.playTime++;
+  const pps = getPointsPerSecond();
+  if (pps > 0) addPoints(pps);
+  updateUI();
+}
+
+function formatNumber(n) {
+  if (!isFinite(n) || n < 0) return '0';
+  if (n >= 1e15) return (n / 1e15).toFixed(1) + 'Qa';
+  if (n >= 1e12) return (n / 1e12).toFixed(1) + 'T';
+  if (n >= 1e9)  return (n / 1e9).toFixed(1)  + 'B';
+  if (n >= 1e6)  return (n / 1e6).toFixed(1)  + 'M';
+  if (n >= 1e3)  return (n / 1e3).toFixed(1)  + 'K';
+  return Math.floor(n).toString();
+}
+
+function formatTime(s) {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return `${h}h ${m}m ${s % 60}s`;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('main-click-btn').addEventListener('click', handleClick);
+  updateUI();
+  setInterval(gameLoop, 1000);
+});
+</script>
+</body>
+</html>
