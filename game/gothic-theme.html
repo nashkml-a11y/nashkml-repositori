@@ -71,7 +71,7 @@ h1 {
 <body>
 <div id="player">
   <h1>GOTHIC ACTION THEME</h1>
-  <div class="meta">A MINOR · 140 BPM · 4/4 · LOOP</div>
+  <div class="meta">A MINOR · 128 BPM · 4/4 · LOOP</div>
   <canvas id="scope" width="260" height="56"></canvas>
   <button id="btn">&#9654; PLAY</button>
   <div class="ch-row">
@@ -93,7 +93,13 @@ h1 {
 //  CH4: filtered noise   (kick / snare / hi-hat)
 //
 //  Key: A natural minor + harmonic minor cadences
-//  Tempo: 140 BPM  |  Metre: 4/4  |  Loop: 8 bars
+//  Tempo: 128 BPM  |  Metre: 4/4  |  Loop: 8 bars
+//
+//  Musical arc:
+//   Bars 1–4: noble quarter/eighth theme, rests between phrases
+//   Bars 5–6: eighth-note reprise, energy builds
+//   Bar  7:   first sixteenth burst, harmonic minor V climbs
+//   Bar  8:   full sixteenth run → loop (most memorable moment)
 //
 //  ── EMBED IN YOUR GAME ──────────────────────────────────
 //  Copy everything between the <script> tags.
@@ -110,7 +116,7 @@ class GothicThemeEngine {
     this.analyser = null;
     this.playing  = false;
     this.loopTimer = null;
-    this.S  = 60 / 140 / 4;  // sixteenth-note duration ≈ 0.1071 s
+    this.S  = 60 / 128 / 4;  // sixteenth-note duration at 128 BPM ≈ 0.1172 s
     this.w25  = null;         // 25% pulse wavetable
     this.wBas = null;         // bass wavetable
     this.nBuf = {};           // pre-built noise buffers
@@ -183,20 +189,40 @@ class GothicThemeEngine {
     const S = this.S;
     let c = t;
 
-    // CH1 — lead
-    for (const [n, d] of LEAD)    { this._p25(F[n], c, d*S*0.87, 0.38); c += d*S; }
+    // CH1 — lead melody
+    // Dynamic gate: long notes breathe more (imponente); short notes tight (urgente)
+    for (const [n, d] of LEAD) {
+      if (n !== 'R') {
+        const gate = d >= 4 ? 0.80 : d >= 2 ? 0.87 : 0.93;
+        this._p25(F[n], c, d * S * gate, 0.38);
+      }
+      c += d * S;
+    }
     c = t;
-    // CH2 — harmony
-    for (const [n, d] of HARMONY) { this._p50(F[n], c, d*S*0.91, 0.18); c += d*S; }
-    c = t;
-    // CH3 — bass
-    for (const [n, d] of BASS)    { this._bas(F[n], c, d*S*0.96, 0.44); c += d*S; }
 
-    // CH4 — percussion, same pattern repeated 8 bars
+    // CH2 — contrapuntal harmony
+    // More legato than lead: fills the space during lead's rests
+    for (const [n, d] of HARMONY) {
+      const gate = d >= 4 ? 0.88 : d >= 2 ? 0.93 : 0.96;
+      this._p50(F[n], c, d * S * gate, 0.18);
+      c += d * S;
+    }
+    c = t;
+
+    // CH3 — bass (always legato)
+    for (const [n, d] of BASS) {
+      this._bas(F[n], c, d * S * 0.93, 0.44);
+      c += d * S;
+    }
+
+    // CH4 — percussion
+    // Bars 1–4: quarter-note hi-hats, straightforward kick on 1 & 3
+    // Bars 5–8: same hi-hats but adds syncopated kick on beat 3+ for drive
     const barLen = 16 * S;
     for (let b = 0; b < 8; b++) {
-      const bt = t + b * barLen;
-      for (const [sl, tp] of PERC) {
+      const bt  = t + b * barLen;
+      const pat = b < 4 ? PERC_A : PERC_B;
+      for (const [sl, tp] of pat) {
         const pt = bt + sl * S;
         if      (tp === 'K') this._kick (pt, 0.58);
         else if (tp === 'S') this._snare(pt, 0.30);
@@ -234,7 +260,7 @@ class GothicThemeEngine {
     const g = this.ctx.createGain();
     o.setPeriodicWave(this.wBas);
     o.frequency.value = hz;
-    // Plucked-style envelope: sharp attack, mid-decay, released tail
+    // Plucked-style: fast attack, mid-point decay, taper off
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(v, t + 0.006);
     g.gain.setValueAtTime(v * 0.76, t + d * 0.35);
@@ -244,7 +270,7 @@ class GothicThemeEngine {
   }
 
   _kick(t, v) {
-    // Sine sweep: 170→42 Hz over 70 ms (classic 16-bit boom)
+    // Sine sweep 170→42 Hz over 70 ms
     const o = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     o.type = 'sine';
@@ -254,14 +280,11 @@ class GothicThemeEngine {
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
     o.connect(g); g.connect(this.master);
     o.start(t); o.stop(t + 0.14);
-    // Lo-pass noise click for transient click
     this._noise(this.nBuf.kick, t, 0.018, 'lowpass', 350, v * 0.28);
   }
 
   _snare(t, v) {
-    // Bandpass noise body
     this._noise(this.nBuf.snare, t, 0.075, 'bandpass', 2000, v, 0.85);
-    // Square-wave crack for the 16-bit bite
     const o = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     o.type = 'square'; o.frequency.value = 210;
@@ -338,91 +361,127 @@ const F = (() => {
 })();
 
 // ============================================================
-//  SCORE  —  A natural / harmonic minor · 140 BPM · 8 bars
+//  SCORE  —  A natural / harmonic minor · 128 BPM · 8 bars
+//
 //  Each entry: [note_name, duration_in_sixteenth_notes]
-//  One sixteenth note = 60/140/4 ≈ 0.1071 s
+//    'R' = rest (cursor advances, no sound)
+//  Durations: 4 = quarter, 2 = eighth, 1 = sixteenth
+//
+//  Structural arc:
+//    Bars 1–2: Statement + response. Quarter-note melody,
+//              explicit rest on beat 4 → pickup note.
+//    Bars 3–4: Development. Longer lines, phrase suspends.
+//    Bars 5–6: Reprise in eighth notes. Energy accelerates.
+//    Bar  7:   V chord, first sixteenth burst (beat 2 run).
+//    Bar  8:   Climax. Full 12-note sixteenth scale run.
+//              Ends on G#4 → loops to E5 (bar 1): a minor
+//              sixth leap that makes the loop feel inevitable.
 // ============================================================
 
 // ── CH1: Lead Melody  (25% pulse) ───────────────────────────
-// Wide interval leaps, continuous eighth/sixteenth momentum.
-// 4-bar phrases: bars 1–4 end suspended on D5 (5th of G, VII).
-//                bars 5–8 end suspended on E5 (5th of Am, loops).
 const LEAD = [
-  // Bar 1 — Am  (i)
-  ['E5',2],['C5',1],['A4',1],   ['C5',2],['E5',2],   ['A5',2],['G5',1],['E5',1],   ['F5',2],['E5',2],
-  // Bar 2 — F   (VI)
-  ['F4',2],['A4',2],             ['C5',2],['F5',2],   ['E5',1],['D5',1],['C5',2],   ['D5',2],['C5',2],
-  // Bar 3 — C   (III)
-  ['E5',2],['G5',2],             ['C5',2],['E5',2],   ['G5',2],['A5',2],             ['G5',2],['E5',2],
-  // Bar 4 — G   (VII) — phrase suspends on D5 (unresolved ♭7 over G)
-  ['B4',2],['D5',2],             ['G5',2],['B5',1],['A5',1],   ['G5',2],['F5',1],['E5',1],   ['D5',4],
-  // Bar 5 — Am  (i) — call-and-response reprise
-  ['A4',1],['E5',1],['A5',1],['G5',1],   ['E5',2],['C5',2],   ['A4',2],['B4',1],['C5',1],   ['E5',2],['D5',2],
-  // Bar 6 — Dm  (iv)
-  ['D5',2],['F5',2],             ['A5',1],['G5',1],['F5',2],   ['E5',2],['D5',2],   ['C5',1],['B4',1],['A4',2],
-  // Bar 7 — E/G#  (V, harmonic minor — G# raised leading tone)
-  ['E4',1],['G#4',1],['B4',2],   ['E5',2],['D5',1],['B4',1],   ['G#4',2],['A4',2],   ['B4',2],['C5',2],
-  // Bar 8 — Am  — phrase suspends on E5 (5th, unresolved — loops to bar 1)
-  ['A4',2],['E5',2],             ['A5',2],['G5',2],   ['F5',1],['E5',1],['D5',2],   ['E5',4],
+  // Bar 1 — Am (i) — opening statement, quarter weight, rest on beat 4
+  ['E5',4],  ['A5',2],['G5',2],  ['E5',4],  ['R',2],['C5',2],
+
+  // Bar 2 — F (VI) — response, descends through chord, rest on beat 4
+  ['F5',4],  ['E5',2],['D5',2],  ['C5',4],  ['R',2],['A4',2],
+
+  // Bar 3 — C (III) — ascending phrase, no rest, builds toward suspension
+  ['G5',4],  ['A5',2],['G5',2],  ['E5',2],['G5',2],  ['D5',4],
+
+  // Bar 4 — G (VII) — suspended cadence: phrase ends on D5 (5th of G, unresolved)
+  ['B4',4],  ['D5',4],  ['G5',2],['F5',2],  ['D5',4],
+
+  // Bar 5 — Am (i) — reprise in eighth notes, energy begins rising
+  ['A4',2],['C5',2],  ['E5',4],  ['A5',2],['G5',2],  ['E5',2],['D5',2],
+
+  // Bar 6 — Dm (iv) — all eighths, relentless forward motion
+  ['D5',2],['F5',2],  ['A5',2],['G5',2],  ['F5',2],['E5',2],  ['D5',2],['C5',2],
+
+  // Bar 7 — E/G# (V, harmonic minor) — sixteenth burst on beat 2, then resolve down
+  ['E4',2],['G#4',2],  ['B4',1],['C5',1],['D5',1],['E5',1],  ['D5',2],['B4',2],  ['G#4',4],
+
+  // Bar 8 — Am climax — full sixteenth run ascending then descending Am harmonic minor
+  // Last note G#4 (raised 7th) → bar 1 opens on E5: a ♭6 leap, maximally tense loop point
+  ['A4',1],['B4',1],['C5',1],['D5',1],  ['E5',1],['F5',1],['E5',1],['D5',1],
+  ['C5',1],['B4',1],['A4',1],['G#4',1],  ['E5',4],
 ];
 
 // ── CH2: Counterpoint Harmony  (50% square) ─────────────────
-// Mostly contrary motion to lead; consonant 3rds, 6ths, 10ths.
-// Inner-voice fills; descends when lead ascends and vice versa.
+// Bars 1–4: quarter notes, contrary motion to lead.
+//           Sustains through lead's rests (fills the silence).
+// Bars 5–6: moves in eighths, mirroring lead's acceleration.
+// Bar  7:   mirrors lead's sixteenth burst an octave below.
+// Bar  8:   holds Am chord (stable bed under climax run).
+//           Final beat uses G#3 to double the harmonic tension.
 const HARMONY = [
   // Bar 1 — Am
-  ['A3',2],['C4',2],   ['E4',2],['C4',2],   ['E4',2],['G4',2],   ['C4',2],['A3',2],
+  ['A3',4],  ['C4',4],  ['E4',4],  ['C4',4],
+
   // Bar 2 — F
-  ['F3',2],['A3',2],   ['C4',2],['F4',2],   ['E4',2],['D4',2],   ['C4',2],['A3',2],
+  ['F3',4],  ['A3',4],  ['C4',4],  ['A3',4],
+
   // Bar 3 — C
-  ['G4',2],['E4',2],   ['C4',2],['G4',2],   ['E4',2],['C4',2],   ['G3',2],['E4',2],
+  ['G4',4],  ['E4',4],  ['G4',4],  ['A4',4],
+
   // Bar 4 — G
-  ['B3',2],['D4',2],   ['G4',2],['B4',2],   ['D5',2],['B4',2],   ['G4',2],['F4',2],
+  ['B3',4],  ['G4',4],  ['B4',4],  ['G4',4],
+
   // Bar 5 — Am
-  ['A3',1],['G3',1],['E3',2],   ['A3',2],['C4',2],   ['E4',2],['C4',2],   ['A3',2],['G3',2],
+  ['A3',2],['C4',2],  ['E4',4],  ['A4',2],['G4',2],  ['E4',2],['C4',2],
+
   // Bar 6 — Dm
-  ['D4',2],['F4',2],   ['A4',1],['G4',1],['F4',2],   ['D4',2],['F4',2],   ['A3',1],['G3',1],['F3',2],
-  // Bar 7 — E/G#
-  ['E4',2],['G#4',2],   ['B4',2],['E5',2],   ['B4',2],['G#4',2],   ['E4',2],['G#4',2],
-  // Bar 8 — Am
-  ['A3',2],['E4',2],   ['A4',2],['C5',2],   ['A4',2],['E4',2],   ['B3',2],['E4',2],
+  ['D4',2],['F4',2],  ['A4',2],['F4',2],  ['D4',2],['F4',2],  ['E4',2],['D4',2],
+
+  // Bar 7 — E/G# (mirrors lead's sixteenth burst one octave lower)
+  ['E3',2],['G#3',2],  ['B3',1],['C4',1],['D4',1],['E4',1],  ['D4',2],['B3',2],  ['G#3',4],
+
+  // Bar 8 — Am (stable quarters; G#3 on beat 4 doubles leading-tone tension)
+  ['A3',4],  ['C4',4],  ['E4',4],  ['G#3',4],
 ];
 
 // ── CH3: Melodic Bass  (custom wavetable) ───────────────────
-// Constant arpeggios and chromatic passing tones — never static.
-// Bar 7 uses F2 as chromatic passing tone E2→G#2 (harmonic approach).
+// Bars 1–4: pure quarter notes, stately root-motion arpeggios.
+// Bars 5–6: eighth-note arpeggios, mirrors lead energy rise.
+// Bars 7–8: eighth notes, drives the climax.
 const BASS = [
-  // Bar 1 — Am
-  ['A2',2],['E3',1],['C3',1],   ['A2',2],['E3',2],   ['C3',2],['G2',1],['A2',1],   ['E3',2],['C3',2],
+  // Bar 1 — Am  (root → 5th → 3rd → root: stately)
+  ['A2',4],  ['E3',4],  ['C3',4],  ['A2',4],
+
   // Bar 2 — F
-  ['F2',2],['C3',1],['A2',1],   ['F2',2],['C3',2],   ['A2',2],['G2',1],['F2',1],   ['E2',2],['F2',2],
+  ['F2',4],  ['C3',4],  ['A2',4],  ['F2',4],
+
   // Bar 3 — C
-  ['C3',2],['G2',1],['E3',1],   ['C3',2],['G3',2],   ['E3',2],['C3',1],['D3',1],   ['E3',2],['G2',2],
+  ['C3',4],  ['G3',4],  ['E3',4],  ['G2',4],
+
   // Bar 4 — G
-  ['G2',2],['D3',1],['B2',1],   ['G2',2],['D3',2],   ['B2',2],['G2',1],['A2',1],   ['B2',2],['D3',2],
-  // Bar 5 — Am
-  ['A2',1],['C3',1],['E3',2],   ['A3',2],['G3',1],['E3',1],   ['C3',2],['A2',2],   ['G2',2],['A2',2],
+  ['G2',4],  ['D3',4],  ['B2',4],  ['D3',4],
+
+  // Bar 5 — Am  (eighth notes enter)
+  ['A2',2],['C3',2],  ['E3',4],  ['A3',2],['G3',2],  ['E3',4],
+
   // Bar 6 — Dm
-  ['D3',2],['A2',1],['F3',1],   ['D3',2],['A2',2],   ['F2',2],['A2',1],['G2',1],   ['F2',2],['A2',2],
-  // Bar 7 — E/G#  (F2 = chromatic passing tone between E2 and G#2)
-  ['E2',2],['B2',1],['G#2',1],   ['E3',2],['B2',2],   ['G#2',2],['E2',1],['F2',1],   ['G#2',2],['B2',2],
-  // Bar 8 — Am
-  ['A2',2],['E3',2],   ['A3',2],['G3',2],   ['E3',1],['D3',1],['C3',2],   ['B2',2],['E3',2],
+  ['D3',2],['F3',2],  ['A3',4],  ['F3',2],['D3',2],  ['A2',4],
+
+  // Bar 7 — E/G#
+  ['E2',2],['G#2',2],  ['B2',4],  ['E3',2],['B2',2],  ['G#2',4],
+
+  // Bar 8 — Am climax (eighth-note Am arpeggios drive the sixteenth run above)
+  ['A2',2],['E3',2],  ['A3',2],['E3',2],  ['A2',2],['C3',2],  ['E3',2],['A2',2],
 ];
 
 // ── CH4: Percussion  (filtered noise + sine sweep) ──────────
-// K = kick  |  S = snare  |  H = hi-hat
-// Positions are 0-indexed sixteenth-note offsets within one bar.
-// Double kick at slots 8+10: driving syncopated forward momentum.
-const PERC = [
-  [0,'K'],[0,'H'],
-           [2,'H'],
-  [4,'S'],[4,'H'],
-           [6,'H'],
-  [8,'K'],[8,'H'],
-  [10,'K'],[10,'H'],
-  [12,'S'],[12,'H'],
-           [14,'H'],
+// K = kick  |  S = snare  |  H = hi-hat (quarter-note only)
+// Positions are 0-indexed sixteenth offsets within one bar.
+
+// Bars 1–4: measured — kick on beats 1 & 3, snare on 2 & 4
+const PERC_A = [
+  [0,'K'],[0,'H'],   [4,'S'],[4,'H'],   [8,'K'],[8,'H'],   [12,'S'],[12,'H'],
+];
+
+// Bars 5–8: driving — adds syncopated kick on slot 10 (the "and" of beat 3)
+const PERC_B = [
+  [0,'K'],[0,'H'],   [4,'S'],[4,'H'],   [8,'K'],[8,'H'],   [10,'K'],   [12,'S'],[12,'H'],
 ];
 
 // ============================================================
@@ -436,7 +495,7 @@ const W = canvas.width, H = canvas.height;
 
 btn.addEventListener('click', () => {
   const on = engine.toggle();
-  btn.textContent = on ? '■ STOP' : '▶ PLAY';
+  btn.textContent = on ? '&#9632; STOP' : '&#9654; PLAY';
   ['c1','c2','c3','c4'].forEach(id =>
     document.getElementById(id).classList.toggle('active', on));
   if (on) rafScope();
