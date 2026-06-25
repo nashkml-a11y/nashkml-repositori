@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Space Ambient</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #010608;
+  color: #304858;
+  font-family: 'Courier New', monospace;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+#player {
+  border: 1px solid #0a1e2a;
+  background: #010810;
+  padding: 20px;
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  text-align: center;
+}
+h1 {
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: #1a4060;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+}
+.meta {
+  font-size: 9px;
+  color: #152030;
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+}
+#scope {
+  display: block;
+  width: 100%;
+  height: 56px;
+  background: #010508;
+  border: 1px solid #0a1820;
+  margin-bottom: 16px;
+}
+#btn {
+  background: #010a14;
+  color: #304858;
+  border: 1px solid #0a2840;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  letter-spacing: 4px;
+  padding: 11px 0;
+  cursor: pointer;
+  width: 100%;
+  transition: color 0.5s, border-color 0.5s;
+}
+#btn.on { color: #4080a0; border-color: #1a5070; }
+.ch-row {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 12px;
+  font-size: 8px;
+  color: #0e1e28;
+  letter-spacing: 1px;
+  transition: color 0.8s;
+}
+.ch-row.on { color: #1a4050; }
+</style>
+</head>
+<body>
+<div id="player">
+  <h1>SPACE AMBIENT</h1>
+  <div class="meta">A MINOR · 60 BPM · LOOP 32s</div>
+  <canvas id="scope" width="260" height="56"></canvas>
+  <button id="btn">&#9654; PLAY</button>
+  <div class="ch-row" id="chrow">
+    <span>CH1 TRI</span>
+    <span>CH2 SINE</span>
+    <span>CH3 WAVE</span>
+    <span>REVERB</span>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  SPACE AMBIENT ENGINE  —  Web Audio API
+//  3-voice synthesis + programmatic reverb, no external deps
+//
+//  CH1: triangle wave  (sparse floating melody, slow attacks)
+//  CH2: sine wave      (harmonic pad, very long held notes)
+//  CH3: wavetable      (sub-bass drone, barely perceptible)
+//  FX:  convolution reverb (impulse response built from code)
+//       + gentle LFO volume breath (0.07 Hz, ±3%)
+//
+//  Key: A minor pentatonic (A C D E G)
+//  Tempo: 60 BPM  |  Loop: 8 bars = 32 seconds
+//  No percussion. No rhythm. Ambient background only.
+//
+//  The reverb is the central element: 3.5-second tail converts
+//  dry chip notes into a spatial wash. Notes overlap through the
+//  reverb even when the source has already stopped.
+//
+//  ── EMBED IN YOUR GAME ──────────────────────────────────
+//  const music = new SpaceAmbientEngine();
+//  someButton.onclick = () => music.toggle();
+//  music.setVolume(0.7);   // 0–1 (default is already low)
+// ============================================================
+
+class SpaceAmbientEngine {
+  constructor() {
+    this.ctx      = null;
+    this.master   = null;
+    this.analyser = null;
+    this.lfoOsc   = null;
+    this.playing  = false;
+    this.loopTimer = null;
+    this.S   = 60 / 60 / 4;   // sixteenth note at 60 BPM = 0.25 s
+    this.wTri = null;
+    this.wBas = null;
+    this.nBuf = {};
+  }
+
+  // ── Public API ──────────────────────────────────────────
+
+  init() {
+    if (this.ctx) return;
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+    this.master = this.ctx.createGain();
+    this.master.gain.value = 0.50;
+
+    this.analyser = this.ctx.createAnalyser();
+    this.analyser.fftSize = 512;
+    this.analyser.smoothingTimeConstant = 0.88;  // very smooth for ambient
+
+    // ── Signal chain ─────────────────────────────────────
+    // master → analyser → dryGain → destination
+    // master → reverb   → wetGain → destination
+    const dryGain = this.ctx.createGain();
+    dryGain.gain.value = 0.60;
+
+    const wetGain = this.ctx.createGain();
+    wetGain.gain.value = 0.45;
+
+    const reverb = this._buildReverb(3.5, 2.2);
+
+    this.master.connect(this.analyser);
+    this.analyser.connect(dryGain);
+    dryGain.connect(this.ctx.destination);
+
+    this.master.connect(reverb);
+    reverb.connect(wetGain);
+    wetGain.connect(this.ctx.destination);
+    // ─────────────────────────────────────────────────────
+
+    this._buildTables();
+    this._buildNoise();
+  }
+
+  play() {
+    if (this.playing) return;
+    this.playing = true;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    this._startLFO();
+    this._scheduleLoop(this.ctx.currentTime + 0.1);
+  }
+
+  stop() {
+    this.playing = false;
+    clearTimeout(this.loopTimer);
+    this._stopLFO();
+    if (this.master) {
+      const t = this.ctx.currentTime;
+      this.master.gain.cancelScheduledValues(t);
+      this.master.gain.setValueAtTime(this.master.gain.value, t);
+      this.master.gain.linearRampToValueAtTime(0, t + 3.0);  // slow 3s fade
+      setTimeout(() => { if (!this.playing && this.master) this.master.gain.value = 0.50; }, 3200);
+    }
+  }
+
+  toggle() {
+    this.init();
+    this.playing ? this.stop() : this.play();
+    return this.playing;
+  }
+
+  setVolume(vol) {
+    if (this.master) this.master.gain.value = Math.max(0, Math.min(1, vol)) * 0.50;
+  }
+
+  // ── Scheduler ───────────────────────────────────────────
+
+  _scheduleLoop(t) {
+    this._scheduleSeq(t);
+    const loopDur = 128 * this.S;  // 32 seconds
+    const delay = (t + loopDur - this.ctx.currentTime - 0.5) * 1000;
+    this.loopTimer = setTimeout(() => {
+      if (this.playing) this._scheduleLoop(t + loopDur);
+    }, Math.max(delay, 100));
+  }
+
+  _scheduleSeq(t) {
+    const S = this.S;
+    let c = t;
+
+    // CH1 — triangle melody (sparse, slow fades)
+    for (const [n, d] of MELODY) {
+      if (n !== 'R') this._tri(F[n], c, d * S, 0.28);
+      c += d * S;
+    }
+    c = t;
+
+    // CH2 — sine pad (very long, harmonic support)
+    for (const [n, d] of PAD) {
+      this._pad(F[n], c, d * S, 0.16);
+      c += d * S;
+    }
+    c = t;
+
+    // CH3 — sub-bass drone
+    for (const [n, d] of SUBBASS) {
+      this._sub(F[n], c, d * S, 0.40);
+      c += d * S;
+    }
+
+    // Cosmic shimmer: soft noise shimmer every 4 bars (barely audible)
+    const barLen = 16 * S;
+    for (let b = 0; b < 8; b += 4) {
+      this._shimmer(t + b * barLen, 0.04);
+    }
+  }
+
+  // ── Voice generators ────────────────────────────────────
+
+  _tri(hz, t, d, v) {
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.setPeriodicWave(this.wTri);
+    o.frequency.value = hz;
+    this._envSoft(g.gain, t, d, v, 1.2, 1.2);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + d + 0.05);
+  }
+
+  _pad(hz, t, d, v) {
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = 'sine';
+    o.frequency.value = hz;
+    this._envSoft(g.gain, t, d, v, 1.8, 1.8);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + d + 0.1);
+  }
+
+  _sub(hz, t, d, v) {
+    const o = this.ctx.createOscillator();
+    const f = this.ctx.createBiquadFilter();
+    const g = this.ctx.createGain();
+    o.setPeriodicWave(this.wBas);
+    o.frequency.value = hz;
+    f.type = 'lowpass'; f.frequency.value = 180; f.Q.value = 0.5;
+    this._envSoft(g.gain, t, d, v, 2.0, 2.0);
+    o.connect(f); f.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + d + 0.1);
+  }
+
+  _shimmer(t, v) {
+    // Very soft high-frequency noise — distant stars, not a beat
+    const dur = 2.5;
+    const src = this.ctx.createBufferSource();
+    const f   = this.ctx.createBiquadFilter();
+    const g   = this.ctx.createGain();
+    src.buffer = this.nBuf.shimmer;
+    f.type = 'highpass'; f.frequency.value = 9500;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(v, t + 1.0);
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    src.connect(f); f.connect(g); g.connect(this.master);
+    src.start(t); src.stop(t + dur + 0.1);
+  }
+
+  // ── Effects & helpers ────────────────────────────────────
+
+  // Programmatic convolution reverb — no audio file needed
+  // Generates a random exponentially decaying impulse response
+  _buildReverb(durationSec, decay) {
+    const sr  = this.ctx.sampleRate;
+    const len = Math.floor(sr * durationSec);
+    const ir  = this.ctx.createBuffer(2, len, sr);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = ir.getChannelData(ch);
+      for (let i = 0; i < len; i++) {
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+      }
+    }
+    const conv = this.ctx.createConvolver();
+    conv.buffer = ir;
+    return conv;
+  }
+
+  // Slow fade-in / hold / fade-out (ambient articulation)
+  _envSoft(p, t, d, v, maxAtt, maxRel) {
+    const att  = Math.min(maxAtt, d * 0.32);
+    const rel  = Math.min(maxRel, d * 0.32);
+    const hold = Math.max(0.01, d - att - rel);
+    p.setValueAtTime(0, t);
+    p.linearRampToValueAtTime(v, t + att);
+    p.setValueAtTime(v, t + att + hold);
+    p.linearRampToValueAtTime(0, t + att + hold + rel);
+  }
+
+  // Gentle volume LFO — "breathing" effect (~14s cycle, ±3%)
+  _startLFO() {
+    if (this.lfoOsc) return;
+    this.lfoOsc = this.ctx.createOscillator();
+    const lfoGain = this.ctx.createGain();
+    this.lfoOsc.type = 'sine';
+    this.lfoOsc.frequency.value = 0.07;
+    lfoGain.gain.value = 0.03;
+    this.lfoOsc.connect(lfoGain);
+    lfoGain.connect(this.master.gain);
+    this.lfoOsc.start();
+  }
+
+  _stopLFO() {
+    if (this.lfoOsc) { this.lfoOsc.stop(); this.lfoOsc = null; }
+  }
+
+  _buildTables() {
+    const N = 64;
+
+    // Triangle: odd harmonics, 1/n², alternating sign
+    const r1 = new Float32Array(N), i1 = new Float32Array(N);
+    for (let n = 1; n < N; n += 2) i1[n] = Math.pow(-1, (n - 1) / 2) / (n * n);
+    this.wTri = this.ctx.createPeriodicWave(r1, i1, {disableNormalization: false});
+
+    // Bass: sub-harmonic warmth
+    const r2 = new Float32Array(N), i2 = new Float32Array(N);
+    for (let n = 1; n < N; n++) i2[n] = n % 2 === 1 ? 1 / n : 0.3 / n;
+    this.wBas = this.ctx.createPeriodicWave(r2, i2, {disableNormalization: false});
+  }
+
+  _buildNoise() {
+    const sr  = this.ctx.sampleRate;
+    const len = Math.floor(sr * 2.5);
+    const b   = this.ctx.createBuffer(1, len, sr);
+    const d   = b.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    this.nBuf.shimmer = b;
+  }
+}
+
+// ============================================================
+//  FREQUENCY TABLE  —  equal temperament, A4 = 440 Hz
+// ============================================================
+const F = (() => {
+  const A4 = 440;
+  const ns = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const m  = {};
+  for (let oct = 1; oct <= 6; oct++)
+    ns.forEach((nm, i) => { m[nm + oct] = A4 * Math.pow(2, ((oct - 4) * 12 + (i - 9)) / 12); });
+  return m;
+})();
+
+// ============================================================
+//  SCORE  —  A minor pentatonic (A C D E G)  ·  60 BPM
+//  Each entry: [note_name, duration_in_sixteenth_notes]
+//    'R' = rest  |  S = 0.25s  →  dur 16 = 4s, dur 32 = 8s
+//
+//  8 bars × 16 sixteenth = 128 positions = 32 seconds total.
+//  The loop point (bar 8 end → bar 1 start) is designed so the
+//  last notes fade out through reverb before bar 1 restarts:
+//  the loop is felt as continuation, not restart.
+// ============================================================
+
+// ── CH1: Triangle  (floating melody) ────────────────────────
+// Mostly rests. Notes emerge slowly (1.2s attack) and dissolve
+// (1.2s release). Never more than one note every 2 bars.
+// The melody only suggests harmony — it does not lead or demand.
+const MELODY = [
+  // Bars 1–2: E5 held 4s, then 4s silence
+  ['E5', 16], ['R', 16],
+  // Bars 3–4: 2s silence, G5 held 4s, 2s silence
+  ['R', 8],   ['G5', 16], ['R', 8],
+  // Bars 5–6: A4 2s, 2s silence, E5 2s, 2s silence
+  ['A4', 8],  ['R', 8],   ['E5', 8], ['R', 8],
+  // Bars 7–8: D5 3s, 1s silence, A4 4s (fades into loop via reverb)
+  ['D5', 12], ['R', 4],   ['A4', 16],
+];
+
+// ── CH2: Sine wave  (harmonic pad) ──────────────────────────
+// Pure sine tones. Changes every 2 bars (every 8 seconds).
+// A3 → C4 → A3 → G3 → loop: a minimal Am harmonic journey.
+// Attack 1.8s, release 1.8s — notes dissolve into each other
+// through the reverb tail, creating a seamless wash.
+const PAD = [
+  ['A3', 32],           // bars 1–2  (A, root)
+  ['C4', 32],           // bars 3–4  (C, minor 3rd — slight shadow)
+  ['A3', 32],           // bars 5–6  (back to root)
+  ['G3', 24], ['A3', 8], // bars 7–8  (G drifts, resolves to A at loop)
+];
+
+// ── CH3: Wavetable  (sub-bass drone) ────────────────────────
+// Lowpass filtered to ~180 Hz: more felt than heard on speakers,
+// audible on headphones as a warm sub-presence.
+// Moves once every 2 bars — a slow tectonic shift.
+const SUBBASS = [
+  ['A2', 32],           // bars 1–2
+  ['F2', 32],           // bars 3–4  (subtle F drone under C4 pad)
+  ['A2', 32],           // bars 5–6
+  ['E2', 16], ['A2', 16], // bars 7–8  (E → A: natural resolution for loop)
+];
+
+// ============================================================
+//  PLAYER UI
+// ============================================================
+const engine = new SpaceAmbientEngine();
+const btn    = document.getElementById('btn');
+const chrow  = document.getElementById('chrow');
+const canvas = document.getElementById('scope');
+const cx     = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+btn.addEventListener('click', () => {
+  const on = engine.toggle();
+  btn.textContent = on ? '&#9632; STOP' : '&#9654; PLAY';
+  btn.classList.toggle('on', on);
+  chrow.classList.toggle('on', on);
+  if (on) rafScope();
+});
+
+function rafScope() {
+  if (!engine.playing || !engine.analyser) {
+    cx.fillStyle = '#010508'; cx.fillRect(0, 0, W, H); return;
+  }
+  requestAnimationFrame(rafScope);
+
+  const data = new Uint8Array(engine.analyser.frequencyBinCount);
+  engine.analyser.getByteTimeDomainData(data);
+
+  // Very slow fade — persistence of vision = ghosting = space feel
+  cx.fillStyle = 'rgba(1,5,8,0.18)';
+  cx.fillRect(0, 0, W, H);
+
+  cx.strokeStyle = '#0d3050';
+  cx.lineWidth = 1;
+  cx.beginPath();
+  const step = W / data.length;
+  for (let i = 0; i < data.length; i++) {
+    const y = (data[i] / 255) * H;
+    i === 0 ? cx.moveTo(0, y) : cx.lineTo(i * step, y);
+  }
+  cx.stroke();
+}
+</script>
+</body>
+</html>
