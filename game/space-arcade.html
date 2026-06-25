@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Space Arcade Theme</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #010810;
+  color: #60b8e8;
+  font-family: 'Courier New', monospace;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+#player {
+  border: 2px solid #0040a0;
+  background: #020c1e;
+  padding: 20px;
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  text-align: center;
+  box-shadow: 0 0 32px #0040a044;
+}
+h1 {
+  font-size: 12px;
+  letter-spacing: 4px;
+  color: #0090e0;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+}
+.meta {
+  font-size: 9px;
+  color: #204060;
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+}
+#scope {
+  display: block;
+  width: 100%;
+  height: 56px;
+  background: #010610;
+  border: 1px solid #102040;
+  margin-bottom: 16px;
+}
+#btn {
+  background: #020c20;
+  color: #60b8e8;
+  border: 2px solid #0060b0;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  letter-spacing: 4px;
+  padding: 11px 0;
+  cursor: pointer;
+  width: 100%;
+}
+#btn:active { background: #041830; }
+.ch-row {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 12px;
+  font-size: 8px;
+  color: #102840;
+  letter-spacing: 1px;
+}
+.active { color: #0080c8 !important; }
+</style>
+</head>
+<body>
+<div id="player">
+  <h1>SPACE ARCADE THEME</h1>
+  <div class="meta">E MINOR · 150 BPM · 4/4 · LOOP</div>
+  <canvas id="scope" width="260" height="56"></canvas>
+  <button id="btn">&#9654; PLAY</button>
+  <div class="ch-row">
+    <span id="c1">CH1 PLS25</span>
+    <span id="c2">CH2 TRI</span>
+    <span id="c3">CH3 WAVE</span>
+    <span id="c4">CH4 NOISE</span>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  SPACE ARCADE THEME ENGINE  —  Web Audio API
+//  4-channel 16-bit synthesis, no external deps
+//
+//  CH1: 25% pulse    (lead melody)
+//  CH2: triangle     (16th-note arpeggio — the orbital energy pulse)
+//  CH3: wavetable    (melodic bass)
+//  CH4: filtered noise (kick / snare / hi-hat)
+//
+//  Key: E natural minor + harmonic minor on bar 7
+//  Tempo: 150 BPM  |  Metre: 4/4  |  Loop: 8 bars
+//
+//  The triangle arpeggio on CH2 runs non-stop — it is the sound of
+//  the energy circle spinning. Lead melody rides on top of it.
+//
+//  Musical arc:
+//    Bars 1–4: driving eighth-note melody, orbital arpeggio beneath
+//    Bar  5:   first upward scale run (sixteenths beat 1)
+//    Bar  6:   Am section, danger incoming
+//    Bar  7:   B major harmonic (D# raised 7th), maximum tension
+//    Bar  8:   full 12-note sixteenth climax run → loop on B4
+//              B4 → E5 (bar 1) = perfect fourth, clean arcade loop
+//
+//  ── EMBED IN YOUR GAME ──────────────────────────────────
+//  Copy everything between the <script> tags. Then:
+//    const music = new SpaceThemeEngine();
+//    someButton.onclick = () => music.toggle();
+//    music.setVolume(0.8);
+// ============================================================
+
+class SpaceThemeEngine {
+  constructor() {
+    this.ctx      = null;
+    this.master   = null;
+    this.analyser = null;
+    this.playing  = false;
+    this.loopTimer = null;
+    this.S   = 60 / 150 / 4;  // sixteenth-note duration = 0.1 s exactly
+    this.w25 = null;           // 25% pulse
+    this.wTri = null;          // triangle (arpeggio)
+    this.wBas = null;          // bass wavetable
+    this.nBuf = {};
+  }
+
+  // ── Public API ──────────────────────────────────────────
+
+  init() {
+    if (this.ctx) return;
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+    this.master = this.ctx.createGain();
+    this.master.gain.value = 0.72;
+
+    this.analyser = this.ctx.createAnalyser();
+    this.analyser.fftSize = 512;
+    this.analyser.smoothingTimeConstant = 0.5;
+
+    this.master.connect(this.analyser);
+    this.analyser.connect(this.ctx.destination);
+
+    this._buildTables();
+    this._buildNoise();
+  }
+
+  play() {
+    if (this.playing) return;
+    this.playing = true;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    this._scheduleLoop(this.ctx.currentTime + 0.05);
+  }
+
+  stop() {
+    this.playing = false;
+    clearTimeout(this.loopTimer);
+    if (this.master) {
+      const t = this.ctx.currentTime;
+      this.master.gain.cancelScheduledValues(t);
+      this.master.gain.setValueAtTime(this.master.gain.value, t);
+      this.master.gain.linearRampToValueAtTime(0, t + 0.06);
+      setTimeout(() => { if (!this.playing && this.master) this.master.gain.value = 0.72; }, 120);
+    }
+  }
+
+  toggle() {
+    this.init();
+    this.playing ? this.stop() : this.play();
+    return this.playing;
+  }
+
+  setVolume(vol) {
+    if (this.master) this.master.gain.value = Math.max(0, Math.min(1, vol)) * 0.72;
+  }
+
+  // ── Scheduler ───────────────────────────────────────────
+
+  _scheduleLoop(t) {
+    this._scheduleSeq(t);
+    const loopDur = 128 * this.S;
+    const delay = (t + loopDur - this.ctx.currentTime - 0.25) * 1000;
+    this.loopTimer = setTimeout(() => {
+      if (this.playing) this._scheduleLoop(t + loopDur);
+    }, Math.max(delay, 50));
+  }
+
+  _scheduleSeq(t) {
+    const S = this.S;
+    let c = t;
+
+    // CH1 — lead melody (dynamic gate)
+    for (const [n, d] of LEAD) {
+      if (n !== 'R') {
+        const gate = d >= 4 ? 0.80 : d >= 2 ? 0.87 : 0.93;
+        this._p25(F[n], c, d * S * gate, 0.35);
+      }
+      c += d * S;
+    }
+    c = t;
+
+    // CH2 — triangle arpeggio (staccato 55% gate = chiptune pluck feel)
+    for (const [n, d] of ARP) {
+      this._tri(F[n], c, d * S * 0.55, 0.17);
+      c += d * S;
+    }
+    c = t;
+
+    // CH3 — bass
+    for (const [n, d] of BASS) {
+      this._bas(F[n], c, d * S * 0.92, 0.46);
+      c += d * S;
+    }
+
+    // CH4 — percussion (same pattern all 8 bars)
+    const barLen = 16 * S;
+    for (let b = 0; b < 8; b++) {
+      const bt = t + b * barLen;
+      for (const [sl, tp] of PERC) {
+        const pt = bt + sl * S;
+        if      (tp === 'K') this._kick (pt, 0.56);
+        else if (tp === 'S') this._snare(pt, 0.28);
+        else                 this._hhat (pt, 0.14);
+      }
+    }
+  }
+
+  // ── Voice generators ────────────────────────────────────
+
+  _p25(hz, t, d, v) {
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.setPeriodicWave(this.w25);
+    o.frequency.value = hz;
+    this._env(g.gain, t, d, v);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + d + 0.01);
+  }
+
+  _tri(hz, t, d, v) {
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.setPeriodicWave(this.wTri);
+    o.frequency.value = hz;
+    this._env(g.gain, t, d, v);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + d + 0.01);
+  }
+
+  _bas(hz, t, d, v) {
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.setPeriodicWave(this.wBas);
+    o.frequency.value = hz;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(v, t + 0.006);
+    g.gain.setValueAtTime(v * 0.75, t + d * 0.35);
+    g.gain.linearRampToValueAtTime(0, t + d);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + d + 0.01);
+  }
+
+  _kick(t, v) {
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(160, t);
+    o.frequency.exponentialRampToValueAtTime(40, t + 0.065);
+    g.gain.setValueAtTime(v, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + 0.13);
+    this._noise(this.nBuf.kick, t, 0.016, 'lowpass', 320, v * 0.25);
+  }
+
+  _snare(t, v) {
+    this._noise(this.nBuf.snare, t, 0.065, 'bandpass', 2200, v, 0.9);
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = 'square'; o.frequency.value = 220;
+    g.gain.setValueAtTime(v * 0.18, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.018);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + 0.020);
+  }
+
+  _hhat(t, v) {
+    this._noise(this.nBuf.hihat, t, 0.028, 'highpass', 8000, v);
+  }
+
+  // ── Helpers ─────────────────────────────────────────────
+
+  _noise(buf, t, dur, fType, fHz, vol, Q) {
+    const s = this.ctx.createBufferSource();
+    const f = this.ctx.createBiquadFilter();
+    const g = this.ctx.createGain();
+    s.buffer = buf;
+    f.type = fType; f.frequency.value = fHz;
+    if (Q !== undefined) f.Q.value = Q;
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    s.connect(f); f.connect(g); g.connect(this.master);
+    s.start(t); s.stop(t + dur + 0.005);
+  }
+
+  _env(p, t, d, v) {
+    p.setValueAtTime(0, t);
+    p.linearRampToValueAtTime(v, t + 0.003);
+    p.setValueAtTime(v, t + Math.max(d - 0.01, 0.003));
+    p.linearRampToValueAtTime(0, t + d);
+  }
+
+  _buildTables() {
+    const N = 64;
+
+    // 25% pulse: a_n = (2/nπ) · sin(n·π·0.25)
+    const r1 = new Float32Array(N), i1 = new Float32Array(N);
+    for (let n = 1; n < N; n++) i1[n] = (2 / (n * Math.PI)) * Math.sin(n * Math.PI * 0.25);
+    this.w25 = this.ctx.createPeriodicWave(r1, i1, {disableNormalization: false});
+
+    // Triangle: odd harmonics only, amplitude ∝ 1/n², alternating sign
+    // This is the Game Boy CH3 / NES triangle approximation
+    const r2 = new Float32Array(N), i2 = new Float32Array(N);
+    for (let n = 1; n < N; n += 2) {
+      i2[n] = Math.pow(-1, (n - 1) / 2) / (n * n);
+    }
+    this.wTri = this.ctx.createPeriodicWave(r2, i2, {disableNormalization: false});
+
+    // Bass: sawtooth-leaning
+    const r3 = new Float32Array(N), i3 = new Float32Array(N);
+    for (let n = 1; n < N; n++) i3[n] = n % 2 === 1 ? 1 / n : 0.35 / n;
+    this.wBas = this.ctx.createPeriodicWave(r3, i3, {disableNormalization: false});
+  }
+
+  _buildNoise() {
+    const sr = this.ctx.sampleRate;
+    const mk = len => {
+      const b = this.ctx.createBuffer(1, len, sr);
+      const d = b.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      return b;
+    };
+    this.nBuf.kick  = mk(Math.ceil(sr * 0.018));
+    this.nBuf.snare = mk(Math.ceil(sr * 0.070));
+    this.nBuf.hihat = mk(Math.ceil(sr * 0.030));
+  }
+}
+
+// ============================================================
+//  FREQUENCY TABLE  —  equal temperament, A4 = 440 Hz
+// ============================================================
+const F = (() => {
+  const A4 = 440;
+  const ns = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const m  = {};
+  for (let oct = 1; oct <= 6; oct++)
+    ns.forEach((nm, i) => { m[nm + oct] = A4 * Math.pow(2, ((oct - 4) * 12 + (i - 9)) / 12); });
+  return m;
+})();
+
+// ============================================================
+//  SCORE  —  E natural / harmonic minor · 150 BPM · 8 bars
+//  Each entry: [note_name, duration_in_sixteenth_notes]
+//    'R' = rest  |  4 = quarter  |  2 = eighth  |  1 = sixteenth
+//
+//  Progression: Em – D – C – D  /  Em – Am – B – Em
+//
+//  The 16th-note arpeggio on CH2 cycles every beat (4 notes per beat)
+//  and never stops — it is the spinning energy circle. The lead melody
+//  rides on top of it, emerging from its orbital hum.
+// ============================================================
+
+// ── CH1: Lead Melody  (25% pulse) ───────────────────────────
+// Bars 1–4: driving eighth notes, arcade momentum.
+// Bar  5:   ascending scale run on beat 1 (first 16th burst).
+// Bar  6:   Am danger section, descending phrase.
+// Bar  7:   B major harmonic (D# + G# = raised 7th + #6),
+//           maximum harmonic tension before loop.
+// Bar  8:   12-note sixteenth run through E harmonic minor,
+//           ends on B4 (V) → loops to E5 (i): perfect-fourth arc.
+const LEAD = [
+  // Bar 1 — Em (i)
+  ['E5',2],['B4',2],['G5',2],['E5',2],  ['B5',2],['A5',2],['G5',2],['F#5',2],
+  // Bar 2 — D (VII)
+  ['D5',2],['A5',2],['F#5',2],['D5',2],  ['F#5',2],['A5',2],['C6',2],['A5',2],
+  // Bar 3 — C (VI)
+  ['C5',2],['G5',2],['E5',2],['C5',2],  ['E5',2],['G5',2],['A5',2],['G5',2],
+  // Bar 4 — D (VII) — phrase suspends on A5 (5th of D, no resolution)
+  ['D5',4],['F#5',2],['A5',2],  ['G5',2],['F#5',2],['A5',4],
+  // Bar 5 — Em (i) — sixteenth run on beat 1, then descent
+  ['E5',1],['F#5',1],['G5',1],['A5',1],  ['B5',2],['A5',2],  ['G5',2],['F#5',2],  ['E5',4],
+  // Bar 6 — Am (iv) — danger, descending phrase
+  ['A4',2],['C5',2],['E5',2],['A5',2],  ['G5',2],['F5',2],['E5',2],['D5',2],
+  // Bar 7 — B (V harmonic) — D# raised 7th, G# raised 6th: coldest tension
+  ['B4',2],['D#5',2],['F#5',2],['B5',2],  ['A5',2],['G#5',2],['F#5',4],
+  // Bar 8 — Em climax: ascending + descending E harmonic minor run
+  // D# (raised 7th) maximises tension → B4 (V) → bar 1 opens on E5 (i)
+  ['E5',1],['F#5',1],['G5',1],['A5',1],  ['B5',1],['C6',1],['B5',1],['A5',1],
+  ['G5',1],['F#5',1],['E5',1],['D#5',1],  ['B4',4],
+];
+
+// ── CH2: Orbital Arpeggio  (triangle wave) ──────────────────
+// Cycles at 16th-note speed (4 notes per beat = 4 arpeggio cycles/bar).
+// Pattern: root–3rd–5th–root one octave up, per chord.
+// Triangle wave = soft, rounder tone that sits under the lead
+// without competing — authentic to NES/GB triangle channel.
+//
+// Bars 1,5,8: Em   → E4–G4–B4–E5
+// Bars 2,4:   D    → D4–F#4–A4–D5
+// Bar  3:     C    → C4–E4–G4–C5
+// Bar  6:     Am   → A3–C4–E4–A4
+// Bar  7:     B    → B3–D#4–F#4–B4  (harmonic V)
+const ARP = [
+  // Bar 1 — Em
+  ['E4',1],['G4',1],['B4',1],['E5',1], ['E4',1],['G4',1],['B4',1],['E5',1],
+  ['E4',1],['G4',1],['B4',1],['E5',1], ['E4',1],['G4',1],['B4',1],['E5',1],
+  // Bar 2 — D
+  ['D4',1],['F#4',1],['A4',1],['D5',1], ['D4',1],['F#4',1],['A4',1],['D5',1],
+  ['D4',1],['F#4',1],['A4',1],['D5',1], ['D4',1],['F#4',1],['A4',1],['D5',1],
+  // Bar 3 — C
+  ['C4',1],['E4',1],['G4',1],['C5',1], ['C4',1],['E4',1],['G4',1],['C5',1],
+  ['C4',1],['E4',1],['G4',1],['C5',1], ['C4',1],['E4',1],['G4',1],['C5',1],
+  // Bar 4 — D
+  ['D4',1],['F#4',1],['A4',1],['D5',1], ['D4',1],['F#4',1],['A4',1],['D5',1],
+  ['D4',1],['F#4',1],['A4',1],['D5',1], ['D4',1],['F#4',1],['A4',1],['D5',1],
+  // Bar 5 — Em (inverted shape: B3–E4–G4–B4 for lower register contrast)
+  ['B3',1],['E4',1],['G4',1],['B4',1], ['B3',1],['E4',1],['G4',1],['B4',1],
+  ['B3',1],['E4',1],['G4',1],['B4',1], ['B3',1],['E4',1],['G4',1],['B4',1],
+  // Bar 6 — Am
+  ['A3',1],['C4',1],['E4',1],['A4',1], ['A3',1],['C4',1],['E4',1],['A4',1],
+  ['A3',1],['C4',1],['E4',1],['A4',1], ['A3',1],['C4',1],['E4',1],['A4',1],
+  // Bar 7 — B harmonic (D# and F# = B major chord tones)
+  ['B3',1],['D#4',1],['F#4',1],['B4',1], ['B3',1],['D#4',1],['F#4',1],['B4',1],
+  ['B3',1],['D#4',1],['F#4',1],['B4',1], ['B3',1],['D#4',1],['F#4',1],['B4',1],
+  // Bar 8 — Em (matches bar 1 for clean loop)
+  ['E4',1],['G4',1],['B4',1],['E5',1], ['E4',1],['G4',1],['B4',1],['E5',1],
+  ['E4',1],['G4',1],['B4',1],['E5',1], ['E4',1],['G4',1],['B4',1],['E5',1],
+];
+
+// ── CH3: Bass  (wavetable) ───────────────────────────────────
+// Bars 1–4: quarter-note root arpeggios (root–5th–3rd–5th).
+// Bars 5–8: eighth notes, drives the energy upward.
+const BASS = [
+  // Bar 1 — Em
+  ['E2',4],['B2',4],['G2',4],['B2',4],
+  // Bar 2 — D
+  ['D2',4],['A2',4],['F#2',4],['A2',4],
+  // Bar 3 — C
+  ['C2',4],['G2',4],['E2',4],['G2',4],
+  // Bar 4 — D
+  ['D2',4],['A2',4],['F#2',4],['D2',4],
+  // Bar 5 — Em  (eighth notes enter)
+  ['E2',2],['G2',2],['B2',4],  ['E3',2],['D3',2],['B2',4],
+  // Bar 6 — Am
+  ['A2',4],['E2',4],['C3',4],['E2',4],
+  // Bar 7 — B harmonic  (D#3 raised 7th)
+  ['B2',4],['D#3',4],['F#3',4],['B2',4],
+  // Bar 8 — Em climax  (eighth arpeggios drive the lead's run)
+  ['E2',2],['B2',2],['E3',2],['B2',2],  ['E2',2],['G2',2],['B2',2],['E2',2],
+];
+
+// ── CH4: Percussion ─────────────────────────────────────────
+// Kick on 1 & 3, snare on 2 & 4, hi-hat every 8th note (positions 0,2,4…).
+// Consistent all 8 bars — relentless arcade urgency.
+const PERC = [
+  [0,'K'],[0,'H'],  [2,'H'],
+  [4,'S'],[4,'H'],  [6,'H'],
+  [8,'K'],[8,'H'],  [10,'H'],
+  [12,'S'],[12,'H'], [14,'H'],
+];
+
+// ============================================================
+//  PLAYER UI  —  oscilloscope scope + play/stop button
+// ============================================================
+const engine = new SpaceThemeEngine();
+const btn    = document.getElementById('btn');
+const canvas = document.getElementById('scope');
+const cx     = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+btn.addEventListener('click', () => {
+  const on = engine.toggle();
+  btn.textContent = on ? '&#9632; STOP' : '&#9654; PLAY';
+  ['c1','c2','c3','c4'].forEach(id =>
+    document.getElementById(id).classList.toggle('active', on));
+  if (on) rafScope();
+});
+
+function rafScope() {
+  if (!engine.playing || !engine.analyser) {
+    cx.fillStyle = '#010610'; cx.fillRect(0, 0, W, H); return;
+  }
+  requestAnimationFrame(rafScope);
+
+  const data = new Uint8Array(engine.analyser.frequencyBinCount);
+  engine.analyser.getByteTimeDomainData(data);
+
+  cx.fillStyle = 'rgba(1,6,16,0.65)';
+  cx.fillRect(0, 0, W, H);
+
+  cx.strokeStyle = '#0060c0';
+  cx.lineWidth = 1.5;
+  cx.beginPath();
+  const step = W / data.length;
+  for (let i = 0; i < data.length; i++) {
+    const y = (data[i] / 255) * H;
+    i === 0 ? cx.moveTo(0, y) : cx.lineTo(i * step, y);
+  }
+  cx.stroke();
+
+  // Scan-line overlay
+  cx.fillStyle = 'rgba(0,0,0,0.10)';
+  for (let y = 0; y < H; y += 2) cx.fillRect(0, y, W, 1);
+}
+</script>
+</body>
+</html>
