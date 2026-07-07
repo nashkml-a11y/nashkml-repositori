@@ -137,6 +137,15 @@ p{line-height:1.5;color:var(--text-dim);}
 .onboard__foot{width:100%;z-index:1;display:flex;flex-direction:column;gap:14px;align-items:center;}
 .onboard__foot .link{font-size:13px;color:var(--text-faint);font-weight:700;}
 .trust-row{display:flex;gap:16px;font-size:11px;color:var(--text-faint);font-weight:700;}
+.dropzone{width:100%;max-width:280px;border:2px dashed var(--border-strong);border-radius:20px;padding:28px 18px;text-align:center;background:var(--surface);transition:border-color .2s ease, background .2s ease;z-index:1;}
+.dropzone.dragover{border-color:var(--primary);background:var(--surface-2);}
+.dropzone__icon{width:56px;height:56px;border-radius:16px;background:var(--grad-brand);display:flex;align-items:center;justify-content:center;color:#0A0A12;margin:0 auto 14px;}
+.dropzone h3{font-size:16px;margin-bottom:8px;}
+.dropzone p{font-size:12.5px;margin-bottom:16px;}
+.privacy-note{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--text-faint);font-weight:600;max-width:280px;text-align:left;background:var(--surface-2);padding:10px 12px;border-radius:12px;margin-top:16px;z-index:1;}
+.privacy-note svg{flex-shrink:0;color:var(--accent);}
+.upload-error{font-size:12.5px;color:var(--danger);font-weight:700;margin-top:12px;}
+.mode-chip{font-size:10.5px;font-weight:700;color:var(--text-faint);margin-top:1px;}
 
 /* ---------- scanning ---------- */
 .scan{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;gap:26px;}
@@ -327,6 +336,10 @@ const ICON_PATHS = {
   arrowRight:`<line x1="5" y1="12" x2="19" y2="12"/><polyline points="13,6 19,12 13,18"/>`,
   sparkles:`<path d="M12 3l1.6 4.6L18 9l-4.4 1.4L12 15l-1.6-4.6L6 9l4.4-1.4L12 3Z"/><path d="M19 15l.6 1.8 1.8.7-1.8.7-.6 1.8-.6-1.8-1.8-.7 1.8-.7.6-1.8Z"/>`,
   refresh:`<path d="M4 4v6h6"/><path d="M20 20v-6h-6"/><path d="M5 15a8 8 0 0 0 14.3 3.5M19 9A8 8 0 0 0 4.7 5.5"/>`,
+  upload:`<path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/>`,
+  file:`<path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/>`,
+  lock:`<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>`,
+  back:`<line x1="19" y1="12" x2="5" y2="12"/><polyline points="11,6 5,12 11,18"/>`,
 };
 function icon(name,size){
   const s=size||22;
@@ -357,7 +370,12 @@ const MOCK_ALERTS=[
 
 /* ================= HELPERS ================= */
 function eur(n){return n.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";}
-function risk(m){
+function risk(m,real){
+  if(real){
+    if(m<=1) return {level:"bajo",label:"Cobrada recientemente"};
+    if(m<=3) return {level:"medio",label:`Sin cargos nuevos hace ${m} meses`};
+    return {level:"alto",label:`Sin cargos hace ${m} meses — revisa si sigue activa`};
+  }
   if(m>=3) return {level:"alto",label:`Sin uso hace ${m} meses`};
   if(m>=1) return {level:"medio",label:`Uso ocasional (hace ${m} ${m>1?"meses":"mes"})`};
   return {level:"bajo",label:"Usado recientemente"};
@@ -375,17 +393,173 @@ const state={
   isPro: load("fuga_pro",false),
   notif: load("fuga_notif",true),
   view: "onboarding",
-  subs: load("fuga_subs", MOCK_SUBS.map(s=>({...s,decision:null}))),
+  subs: load("fuga_subs", MOCK_SUBS.map(s=>({...s,decision:null,real:false}))),
   dismissedAlerts: load("fuga_dismissed",[]),
+  usingRealData: load("fuga_using_real",false),
 };
 function persist(){
   save("fuga_theme",state.theme); save("fuga_onboarded",state.onboarded);
   save("fuga_scanned",state.scanned); save("fuga_pro",state.isPro);
   save("fuga_notif",state.notif); save("fuga_subs",state.subs);
-  save("fuga_dismissed",state.dismissedAlerts);
+  save("fuga_dismissed",state.dismissedAlerts); save("fuga_using_real",state.usingRealData);
 }
 function totalSaved(){return state.subs.filter(s=>s.decision==="cancel").reduce((a,s)=>a+s.price,0);}
 function totalSpend(){return state.subs.reduce((a,s)=>a+s.price,0);}
+
+/* ================= REAL BANK CSV PARSING & SUBSCRIPTION DETECTION ================= */
+function parseAmount(raw){
+  let str=String(raw).trim().replace(/[€$\s]/g,"");
+  if(!str) return null;
+  let neg=false;
+  if(/^\(.*\)$/.test(str)){ neg=true; str=str.slice(1,-1); }
+  if(str.startsWith("-")){ neg=true; str=str.slice(1); }
+  if(str.startsWith("+")) str=str.slice(1);
+  const lastComma=str.lastIndexOf(","), lastDot=str.lastIndexOf(".");
+  if(lastComma>-1 && lastDot>-1){
+    if(lastComma>lastDot) str=str.replace(/\./g,"").replace(",",".");
+    else str=str.replace(/,/g,"");
+  } else if(lastComma>-1){
+    str=str.replace(/\./g,"").replace(",",".");
+  }
+  const n=parseFloat(str);
+  if(isNaN(n)) return null;
+  return neg?-Math.abs(n):n;
+}
+function parseDate(raw){
+  const str=String(raw).trim();
+  let m=str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if(m) return new Date(+m[1],+m[2]-1,+m[3]);
+  m=str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if(m){ let [,d,mo,y]=m; if(y.length===2) y="20"+y; return new Date(+y,+mo-1,+d); }
+  return null;
+}
+function detectDelimiter(line){
+  const semis=(line.match(/;/g)||[]).length, commas=(line.match(/,/g)||[]).length, tabs=(line.match(/\t/g)||[]).length;
+  if(tabs>semis && tabs>commas) return "\t";
+  return semis>=commas ? ";" : ",";
+}
+function parseCSV(text){
+  const lines=text.split(/\r\n|\n|\r/).filter(l=>l.trim().length>0);
+  if(lines.length===0) return {headers:[],rows:[]};
+  const delim=detectDelimiter(lines[0]);
+  function parseLine(line){
+    const cells=[]; let cur="", inQuotes=false;
+    for(let i=0;i<line.length;i++){
+      const ch=line[i];
+      if(ch==='"'){ if(inQuotes && line[i+1]==='"'){ cur+='"'; i++; } else inQuotes=!inQuotes; }
+      else if(ch===delim && !inQuotes){ cells.push(cur); cur=""; }
+      else cur+=ch;
+    }
+    cells.push(cur);
+    return cells.map(c=>c.trim());
+  }
+  const headers=parseLine(lines[0]).map(h=>h.toLowerCase());
+  const rows=lines.slice(1).map(parseLine);
+  return {headers,rows};
+}
+function detectColumns(headers,rows){
+  const dateKeys=["fecha","date","data"];
+  const amountKeys=["importe","amount","cantidad","valor","cargo"];
+  const descKeys=["concepto","descripcion","descripción","description","detalle","movimiento"];
+  function findIdx(keys){ for(const k of keys){ const i=headers.findIndex(h=>h.includes(k)); if(i>-1) return i; } return -1; }
+  let dateIdx=findIdx(dateKeys), amountIdx=findIdx(amountKeys), descIdx=findIdx(descKeys);
+  if(dateIdx===-1 || amountIdx===-1 || descIdx===-1){
+    const sample=rows.slice(0,Math.min(15,rows.length));
+    const scores=headers.map(()=>({date:0,amount:0,text:0}));
+    sample.forEach(r=>{
+      r.forEach((val,ci)=>{
+        if(!scores[ci]) return;
+        if(parseDate(val)) scores[ci].date++;
+        if(parseAmount(val)!==null && /\d/.test(val)) scores[ci].amount++;
+        if(isNaN(parseFloat(val.replace(",","."))) && val.length>3) scores[ci].text++;
+      });
+    });
+    if(dateIdx===-1) dateIdx=scores.reduce((best,s,i)=> s.date>scores[best].date?i:best,0);
+    if(amountIdx===-1){
+      let best=-1,bestScore=-1;
+      scores.forEach((s,i)=>{ if(i!==dateIdx && s.amount>bestScore){bestScore=s.amount;best=i;} });
+      amountIdx=best;
+    }
+    if(descIdx===-1){
+      let best=-1,bestScore=-1;
+      scores.forEach((s,i)=>{ if(i!==dateIdx && i!==amountIdx && s.text>bestScore){bestScore=s.text;best=i;} });
+      descIdx=best;
+    }
+  }
+  return {dateIdx,amountIdx,descIdx};
+}
+function titleCase(s){
+  return s.toLowerCase().split(" ").filter(Boolean).map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ");
+}
+function normalizeMerchant(desc){
+  let s=String(desc).toUpperCase();
+  s=s.replace(/\d{4,}/g,"");
+  s=s.replace(/[*#\/\-_.,]+/g," ");
+  s=s.replace(/\s+/g," ").trim();
+  const stop=new Set(["DE","LA","EL","PAGO","COMPRA","TARJETA","RECIBO","TRANSFERENCIA","ES","SL","SA","BIZUM"]);
+  const words=s.split(" ").filter(w=>w.length>1 && !stop.has(w));
+  return words.slice(0,3).join(" ") || s.slice(0,20) || "DESCONOCIDO";
+}
+function hslToHex(h,s,l){
+  s/=100; l/=100;
+  const k=n=>(n+h/30)%12;
+  const a=s*Math.min(l,1-l);
+  const f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));
+  const toHex=x=>Math.round(255*x).toString(16).padStart(2,"0");
+  return "#"+toHex(f(0))+toHex(f(8))+toHex(f(4));
+}
+function colorFromString(str){
+  let hash=0; for(let i=0;i<str.length;i++){ hash=str.charCodeAt(i)+((hash<<5)-hash); }
+  const hue=Math.abs(hash)%360;
+  return {c1:hslToHex(hue,70,50), c2:hslToHex(hue,70,32)};
+}
+function detectSubscriptions(transactions){
+  const expenses=transactions.filter(t=>t.amount<0 && t.date);
+  const groups={};
+  expenses.forEach(t=>{
+    const key=normalizeMerchant(t.desc);
+    (groups[key]=groups[key]||[]).push(t);
+  });
+  const results=[]; let idCounter=1000;
+  Object.entries(groups).forEach(([key,txs])=>{
+    if(txs.length<2) return;
+    const sorted=[...txs].sort((a,b)=>a.amount-b.amount);
+    const amountGroups=[];
+    sorted.forEach(t=>{
+      let placed=false;
+      for(const g of amountGroups){
+        const avg=g.reduce((a,x)=>a+x.amount,0)/g.length;
+        if(Math.abs(t.amount-avg)/Math.abs(avg)<0.08){ g.push(t); placed=true; break; }
+      }
+      if(!placed) amountGroups.push([t]);
+    });
+    amountGroups.forEach(g=>{
+      if(g.length<2) return;
+      g.sort((a,b)=>a.date-b.date);
+      const intervals=[];
+      for(let i=1;i<g.length;i++) intervals.push((g[i].date-g[i-1].date)/(1000*3600*24));
+      const avgInterval=intervals.reduce((a,b)=>a+b,0)/intervals.length;
+      let frequency=null, divisor=1;
+      if(avgInterval>=22 && avgInterval<=40){ frequency="mensual"; divisor=1; }
+      else if(avgInterval>=80 && avgInterval<=100){ frequency="trimestral"; divisor=3; }
+      else if(avgInterval>=330 && avgInterval<=400){ frequency="anual"; divisor=12; }
+      if(!frequency) return;
+      const lastDate=g[g.length-1].date;
+      const monthsSince=Math.max(0,Math.round((new Date()-lastDate)/(1000*3600*24*30)));
+      const avgAmount=g.reduce((a,x)=>a+Math.abs(x.amount),0)/g.length;
+      const name=titleCase(key);
+      idCounter++;
+      results.push({
+        id:idCounter, name, cat: frequency==="mensual"?"Recurrente":frequency.charAt(0).toUpperCase()+frequency.slice(1),
+        price: Math.round((avgAmount/divisor)*100)/100,
+        billingNote: frequency!=="mensual" ? `Cargo real: ${eur(avgAmount)} cada ${frequency==="anual"?"12":"3"} meses` : null,
+        lastUsedMonths: monthsSince, initial:(name[0]||"?").toUpperCase(),
+        ...colorFromString(key), decision:null, real:true,
+      });
+    });
+  });
+  return results.sort((a,b)=>b.price-a.price);
+}
 
 /* ================= TOAST ================= */
 function showToast(msg){
@@ -493,10 +667,94 @@ function viewOnboarding(){
       <p>Fuga detecta suscripciones olvidadas en tu banco y te ayuda a cancelarlas en segundos.</p>
     </div>
     <div class="onboard__foot">
-      <button class="btn btn-primary" data-action="start-scan">Detectar mis fugas ${icon("arrowRight",18)}</button>
-      <div class="trust-row"><span>🔒 Datos simulados</span><span>⚡ Resultado en 3s</span><span>Sin tarjeta</span></div>
+      <button class="btn btn-primary" data-action="show-upload">Analizar mi extracto real ${icon("arrowRight",18)}</button>
+      <button class="btn btn-outline" data-action="start-scan">Probar con datos de ejemplo</button>
+      <div class="trust-row"><span>🔒 100% local</span><span>⚡ Sin registro</span><span>Sin tarjeta</span></div>
     </div>
   </div>`;
+}
+
+function viewUpload(){
+  return `
+  <div class="onboard" id="uploadBody">
+    <div class="onboard__blob a"></div><div class="onboard__blob b"></div>
+    <button class="icon-btn" data-action="nav-onboarding" style="position:absolute;top:20px;left:20px;z-index:2;">${icon("back",16)}</button>
+    <div class="brandmark">${icon("drop",17)} Fuga</div>
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone__icon">${icon("upload",26)}</div>
+      <h3>Sube tu extracto bancario</h3>
+      <p>Exporta el histórico de movimientos como CSV desde tu banca online (normalmente en "Movimientos" → "Exportar") y súbelo aquí.</p>
+      <input type="file" id="fileInput" accept=".csv,.txt" style="display:none;">
+      <button class="btn btn-primary btn-sm" data-action="pick-file">${icon("file",16)} Elegir archivo CSV</button>
+      <div id="uploadError"></div>
+    </div>
+    <div class="privacy-note">${icon("lock",18)} Tu archivo se procesa dentro de este navegador. Nunca se envía a ningún servidor.</div>
+  </div>`;
+}
+
+function subsSpend(list){ return list.reduce((a,s)=>a+s.price,0); }
+
+function showUploadRevealResult(detected){
+  const body=document.getElementById("uploadBody");
+  if(!body) return;
+  body.innerHTML=`
+    <div class="reveal">
+      <div class="empty-state__icon">${icon("sparkles",34)}</div>
+      <div><h2 style="margin-bottom:4px;">¡Encontramos ${detected.length} ${detected.length>1?"suscripciones reales":"suscripción real"}!</h2>
+      <p>Analizamos tus movimientos y detectamos estos cargos recurrentes.</p></div>
+      <div class="reveal-card">
+        <div class="stat-hero__label" style="text-align:left;">Gasto mensual recurrente detectado</div>
+        <div class="stat-big">${eur(subsSpend(detected))}</div>
+      </div>
+      <button class="btn btn-primary" data-action="enter-app">Revisar mis suscripciones ${icon("arrowRight",18)}</button>
+    </div>`;
+}
+function showUploadEmptyResult(){
+  const body=document.getElementById("uploadBody");
+  if(!body) return;
+  body.innerHTML=`
+    <div class="empty-state">
+      <div class="empty-state__icon">${icon("shield",30)}</div>
+      <h2>No hemos encontrado cargos recurrentes</h2>
+      <p>Necesitamos al menos 2 cobros del mismo servicio en el histórico. Prueba con otro archivo o usa los datos de ejemplo mientras tanto.</p>
+      <button class="btn btn-primary" data-action="show-upload">Probar con otro archivo</button>
+      <button class="btn btn-outline" data-action="start-scan" style="margin-top:10px;">Ver datos de ejemplo</button>
+    </div>`;
+}
+function handleFile(file){
+  const errEl=document.getElementById("uploadError");
+  if(errEl){ errEl.className=""; errEl.textContent=""; }
+  const reader=new FileReader();
+  reader.onload=(e)=>{
+    try{
+      const {headers,rows}=parseCSV(String(e.target.result));
+      if(rows.length<3) throw new Error("El archivo parece vacío o no es un CSV válido.");
+      const {dateIdx,amountIdx,descIdx}=detectColumns(headers,rows);
+      if(dateIdx===-1||amountIdx===-1||descIdx===-1) throw new Error("No hemos podido identificar las columnas de fecha, importe y concepto.");
+      const transactions=rows.map(r=>({date:parseDate(r[dateIdx]),amount:parseAmount(r[amountIdx]),desc:r[descIdx]||""}))
+        .filter(t=>t.date && t.amount!==null);
+      if(transactions.length<5) throw new Error("No hemos encontrado suficientes movimientos válidos en el archivo.");
+      const detected=detectSubscriptions(transactions);
+      if(detected.length===0){ showUploadEmptyResult(); return; }
+      state.subs=detected; state.usingRealData=true; state.onboarded=true; state.scanned=true;
+      persist();
+      showUploadRevealResult(detected);
+    }catch(err){
+      if(errEl){ errEl.className="upload-error"; errEl.textContent=err.message; }
+    }
+  };
+  reader.onerror=()=>{ if(errEl){ errEl.className="upload-error"; errEl.textContent="No se ha podido leer el archivo."; } };
+  reader.readAsText(file,"UTF-8");
+}
+function setupUpload(){
+  const input=document.getElementById("fileInput");
+  const dz=document.getElementById("dropzone");
+  if(input) input.addEventListener("change", e=>{ const f=e.target.files[0]; if(f) handleFile(f); });
+  if(dz){
+    ["dragover","dragenter"].forEach(evt=>dz.addEventListener(evt,e=>{ e.preventDefault(); dz.classList.add("dragover"); }));
+    ["dragleave","drop"].forEach(evt=>dz.addEventListener(evt,e=>{ e.preventDefault(); dz.classList.remove("dragover"); }));
+    dz.addEventListener("drop", e=>{ const f=e.dataTransfer.files[0]; if(f) handleFile(f); });
+  }
 }
 
 function viewScanning(){
@@ -542,7 +800,10 @@ function shell(view, inner){
   const saved=totalSaved();
   return {
     topbar:`
-      <div class="topbar__title">${titles[view]}</div>
+      <div>
+        <div class="topbar__title">${titles[view]}</div>
+        <div class="mode-chip">${state.usingRealData?"📄 Tu extracto real":"🧪 Datos de ejemplo"}</div>
+      </div>
       <div class="topbar__right">
         <button class="icon-btn" data-action="nav" data-arg="alertas">${icon("bell",18)}${pendingAlerts>0?'<span class="dot"></span>':""}</button>
         <button class="icon-btn" data-action="toggle-theme">${icon(state.theme==="dark"?"sun":"moon",18)}</button>
@@ -563,10 +824,10 @@ function viewRadar(){
         <button class="btn btn-primary" data-action="nav" data-arg="ahorro">Ver mi ahorro ${icon("arrowRight",18)}</button>
       </div>`;
   }
-  const potentialLeak=pending.filter(s=>risk(s.lastUsedMonths).level==="alto").reduce((a,s)=>a+s.price,0);
+  const potentialLeak=pending.filter(s=>risk(s.lastUsedMonths,s.real).level==="alto").reduce((a,s)=>a+s.price,0);
   const stack=pending.slice(0,3);
   const cardsHtml=stack.map((s,i)=>{
-    const r=risk(s.lastUsedMonths);
+    const r=risk(s.lastUsedMonths,s.real);
     return `
       <div class="swipe-card" data-id="${s.id}" data-top="${i===0?1:0}" style="--stack-i:${i}">
         <div class="swipe-hint"></div>
@@ -575,6 +836,7 @@ function viewRadar(){
           <div><div class="swipe-card__name">${s.name}</div><div class="swipe-card__cat">${s.cat}</div></div>
         </div>
         <div class="swipe-card__price">${eur(s.price)}<span>/mes</span></div>
+        ${s.billingNote?`<div style="font-size:11px;color:var(--text-faint);font-weight:600;margin:-8px 0 12px;">${s.billingNote}</div>`:""}
         <div class="chip chip--${r.level}">${r.label}</div>
         <div class="swipe-card__footer">Desliza o elige una opción</div>
       </div>`;
@@ -700,8 +962,13 @@ function viewPerfil(){
       </div>
       <div class="settings-item">
         <div class="settings-item__icon">${icon("bank",16)}</div>
-        <div class="settings-item__label">Banco Simulado S.A.</div>
-        <div class="settings-item__value">•••• 4821</div>
+        <div class="settings-item__label">${state.usingRealData?"Extracto real cargado":"Banco Simulado S.A."}</div>
+        <div class="settings-item__value">${state.usingRealData?"CSV":"•••• 4821"}</div>
+      </div>
+      <div class="settings-item" data-action="show-upload" style="cursor:pointer;">
+        <div class="settings-item__icon">${icon("upload",16)}</div>
+        <div class="settings-item__label">Analizar otro extracto real</div>
+        ${icon("arrowRight",14)}
       </div>
     </div>
     <button class="btn btn-outline" data-action="reset-demo">${icon("refresh",16)} Reiniciar demo</button>
@@ -711,7 +978,7 @@ function viewPerfil(){
 /* ================= RENDER ================= */
 function render(){
   const app=document.getElementById("app");
-  const immersive = state.view==="onboarding" || state.view==="scanning";
+  const immersive = state.view==="onboarding" || state.view==="scanning" || state.view==="upload";
   app.classList.toggle("app--immersive", immersive);
   const topbarEl=document.getElementById("topbar");
   const contentEl=document.getElementById("viewContent");
@@ -719,6 +986,7 @@ function render(){
 
   if(state.view==="onboarding"){ topbarEl.innerHTML=""; contentEl.innerHTML=viewOnboarding(); navEl.innerHTML=""; }
   else if(state.view==="scanning"){ topbarEl.innerHTML=""; contentEl.innerHTML=viewScanning(); navEl.innerHTML=""; }
+  else if(state.view==="upload"){ topbarEl.innerHTML=""; contentEl.innerHTML=viewUpload(); navEl.innerHTML=""; }
   else{
     const map={radar:viewRadar,ahorro:viewAhorro,alertas:viewAlertas,perfil:viewPerfil};
     const s=shell(state.view, map[state.view]());
@@ -741,6 +1009,7 @@ function render(){
 }
 
 function afterRender(){
+  if(state.view==="upload") setupUpload();
   if(state.view==="radar") setupSwipe();
   if(state.view==="ahorro"){
     const big=document.getElementById("savedBig");
@@ -836,6 +1105,9 @@ function startScanning(){
 function handleAction(action,arg,el){
   switch(action){
     case "start-scan": startScanning(); break;
+    case "show-upload": state.view="upload"; render(); break;
+    case "nav-onboarding": state.view="onboarding"; render(); break;
+    case "pick-file": { const inp=document.getElementById("fileInput"); if(inp) inp.click(); break; }
     case "enter-app":
       state.onboarded=true; state.scanned=true; persist();
       state.view = state.subs.some(s=>!s.decision) ? "radar" : "ahorro";
