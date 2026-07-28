@@ -3,12 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import export, songs
 from app.config import get_settings
-from app.database import Base, engine
 
 settings = get_settings()
 
-Base.metadata.create_all(bind=engine)
-
+# Schema is managed by Alembic migrations (see backend/migrations/), applied
+# via `alembic upgrade head` before this process starts (see Dockerfile /
+# README) -- not created here, so the DB schema always matches a committed
+# migration instead of silently drifting from the ORM models.
 app = FastAPI(title="SongChord AI", version="0.1.0")
 
 app.add_middleware(
