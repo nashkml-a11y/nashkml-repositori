@@ -12,4 +12,10 @@ celery_app.conf.update(
     task_track_started=True,
     worker_send_task_events=True,
 )
-celery_app.autodiscover_tasks(["app.tasks"])
+
+# `autodiscover_tasks` only looks for a submodule literally named `tasks.py`
+# inside each listed package (Django-app convention); our task lives in
+# `app/tasks/pipeline.py`, so it was never actually registered with the
+# worker. Import it directly instead -- the @celery_app.task decorator in
+# that module registers "analyze_song" as a side effect of the import.
+import app.tasks.pipeline  # noqa: E402,F401

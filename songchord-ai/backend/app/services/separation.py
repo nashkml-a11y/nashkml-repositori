@@ -7,6 +7,7 @@ process, keeping memory usage isolated per job.
 
 import os
 import subprocess
+import sys
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -20,7 +21,12 @@ class SeparationError(RuntimeError):
 
 def build_demucs_cmd(input_wav: str, output_dir: str) -> list[str]:
     return [
-        "python3",
+        # sys.executable, not a bare "python3": the worker may run inside a
+        # venv, and a bare "python3" resolves via PATH to whatever
+        # interpreter happens to be first on it, which may not be the one
+        # demucs was installed into (confirmed by a real run: it silently
+        # picked the system Python instead of the venv's).
+        sys.executable,
         "-m",
         "demucs",
         "-n",
