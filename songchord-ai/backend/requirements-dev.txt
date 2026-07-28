@@ -1,3 +1,10 @@
--r requirements.txt
+# Test-time dependencies only. The pytest suite never imports the heavy
+# worker deps (torch/demucs/essentia) at module load time -- chords.py and
+# transcription.py import them lazily inside functions -- so CI stays fast.
+# The pinned worker deps are separately verified installable in
+# requirements-worker.txt (see README "Verificación real" section).
+-r requirements-api.txt
+tenacity==9.0.0
+openai==1.51.0
 pytest==8.3.3
 pytest-asyncio==0.24.0
