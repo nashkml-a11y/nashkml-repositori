@@ -1,0 +1,17 @@
+FROM python:3.11-slim
+
+WORKDIR /srv
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    build-essential \
+    libsndfile1 \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements-worker.txt requirements-api.txt ./
+RUN pip install --no-cache-dir -r requirements-worker.txt
+
+COPY app ./app
+
+CMD ["celery", "-A", "app.celery_app.celery_app", "worker", "--loglevel=INFO", "--concurrency=1"]
