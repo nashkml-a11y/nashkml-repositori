@@ -5,7 +5,7 @@ import { config } from "./config.js";
 
 const client = new Anthropic({ apiKey: config.anthropicApiKey });
 
-const MODEL = "claude-opus-5";
+const MODEL = "claude-haiku-4-5";
 
 // ---------------------------------------------------------------------------
 // Extracción de "guardar objeto" a partir de una frase en lenguaje natural
@@ -97,7 +97,6 @@ export async function extractItemFromText(
       },
     ],
     output_config: {
-      effort: "medium",
       format: zodOutputFormat(ExtractionSchema),
     },
   });
@@ -183,7 +182,6 @@ export async function semanticSearchItems(
       },
     ],
     output_config: {
-      effort: "medium",
       format: zodOutputFormat(SearchMatchSchema),
     },
   });
