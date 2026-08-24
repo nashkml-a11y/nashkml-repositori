@@ -1,10 +1,21 @@
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+import { AuthError, clearToken, getToken, setToken } from "./auth";
+
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8787";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getToken();
   const res = await fetch(`${API_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     ...options,
   });
+  if (res.status === 401 && path !== "/api/auth/login") {
+    clearToken();
+    window.dispatchEvent(new Event("auth-expired"));
+    throw new AuthError();
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? `Error ${res.status}`);
@@ -66,6 +77,13 @@ export interface ExtractionPreview {
 }
 
 export const api = {
+  async login(password: string): Promise<void> {
+    const { token } = await request<{ token: string }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
+    setToken(token);
+  },
   search(query: string): Promise<SearchResult> {
     return request("/api/search", { method: "POST", body: JSON.stringify({ query }) });
   },

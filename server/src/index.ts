@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { Env } from "./types.js";
+import { verifyToken } from "./auth.js";
+import { authRouter } from "./routes/auth.js";
 import { searchRouter } from "./routes/search.js";
 import { itemsRouter } from "./routes/items.js";
 import { locationsRouter } from "./routes/locations.js";
@@ -18,6 +20,19 @@ app.use(
 );
 
 app.get("/api/health", (c) => c.json({ ok: true }));
+
+// Público: sin esto nadie podría iniciar sesión.
+app.route("/api/auth", authRouter);
+
+// A partir de aquí, toda /api/* exige un token de sesión válido.
+app.use("/api/*", async (c, next) => {
+  const authHeader = c.req.header("Authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+  if (!(await verifyToken(c.env.AUTH_SECRET, token))) {
+    return c.json({ error: "No autenticado" }, 401);
+  }
+  await next();
+});
 
 app.route("/api/search", searchRouter);
 app.route("/api/items", itemsRouter);

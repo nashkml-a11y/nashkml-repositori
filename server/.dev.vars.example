@@ -1,4 +1,14 @@
 # Copia este fichero a .dev.vars (no se versiona) para desarrollo local con
-# `wrangler dev`. En producción se define como secret:
+# `wrangler dev`. En producción se definen como secrets:
 #   wrangler secret put ANTHROPIC_API_KEY
+#   wrangler secret put APP_PASSWORD
+#   wrangler secret put AUTH_SECRET
+
 ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# Contraseña para entrar en la app. Sin ella nadie puede usarla.
+APP_PASSWORD=cambia-esto-por-una-contraseña-segura
+
+# Clave con la que se firman los tokens de sesión (no es la contraseña en sí).
+# Genera una aleatoria, por ejemplo: openssl rand -base64 32
+AUTH_SECRET=cambia-esto-por-una-cadena-aleatoria-larga

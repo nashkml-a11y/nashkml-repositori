@@ -1,15 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MicButton } from "./components/MicButton";
 import { ResultCard } from "./components/ResultCard";
 import { SaveItemModal } from "./components/SaveItemModal";
 import { LocationsModal } from "./components/LocationsModal";
+import { LoginScreen } from "./components/LoginScreen";
 import { useSpeechRecognition, isSpeechRecognitionSupported } from "./useSpeechRecognition";
 import { api, type SearchCandidate, type SearchResult } from "./api";
+import { getToken } from "./auth";
 import { speak } from "./speak";
 
 type ModalKind = "save-item" | "locations" | null;
 
 function App() {
+  const [authenticated, setAuthenticated] = useState(() => getToken() !== null);
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<SearchResult | null>(null);
   const [searching, setSearching] = useState(false);
@@ -57,6 +60,16 @@ function App() {
     setOpenModal(null);
     setSavedNotice(true);
     setTimeout(() => setSavedNotice(false), 3500);
+  }
+
+  useEffect(() => {
+    const handleExpired = () => setAuthenticated(false);
+    window.addEventListener("auth-expired", handleExpired);
+    return () => window.removeEventListener("auth-expired", handleExpired);
+  }, []);
+
+  if (!authenticated) {
+    return <LoginScreen onSuccess={() => setAuthenticated(true)} />;
   }
 
   return (

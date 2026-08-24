@@ -32,7 +32,8 @@ cd server
 npm install
 npm run db:migrate:local        # crea el esquema en una D1 local (SQLite en disco)
 cp .dev.vars.example .dev.vars
-# Edita .dev.vars y añade tu ANTHROPIC_API_KEY
+# Edita .dev.vars: ANTHROPIC_API_KEY, APP_PASSWORD (la contraseña de entrada a
+# la app) y AUTH_SECRET (clave aleatoria para firmar la sesión, no la contraseña)
 npm run dev                     # wrangler dev, por defecto en http://localhost:8787
 ```
 
@@ -63,8 +64,14 @@ npm run db:create                       # crea la base D1 y muestra su database_
 # copia ese database_id en wrangler.toml, sustituyendo REPLACE_WITH_YOUR_D1_DATABASE_ID
 npm run db:migrate:remote               # aplica el esquema a la D1 real
 npx wrangler secret put ANTHROPIC_API_KEY
+npx wrangler secret put APP_PASSWORD    # la contraseña con la que entrarás a la app
+npx wrangler secret put AUTH_SECRET     # cadena aleatoria para firmar la sesión, p.ej. `openssl rand -base64 32`
 npm run deploy                          # publica el Worker
 ```
+
+La app entera queda detrás de esa contraseña: sin ella, la API rechaza cualquier
+petición (salvo `/api/health` y el propio login) con `401`, así que aunque alguien
+tenga la URL pública no puede ver ni usar tus datos.
 
 Al desplegar, `wrangler` te da la URL pública del Worker (algo como
 `https://buscador-api.<tu-subdominio>.workers.dev`). Edita `CORS_ORIGIN` en
