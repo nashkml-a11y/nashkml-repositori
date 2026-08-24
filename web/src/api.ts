@@ -120,6 +120,9 @@ export const api = {
   deleteLocation(id: number): Promise<void> {
     return request(`/api/locations/${id}`, { method: "DELETE" });
   },
+  listItemsByLocation(id: number): Promise<Item[]> {
+    return request(`/api/locations/${id}/items`);
+  },
   listItems(): Promise<Item[]> {
     return request("/api/items");
   },

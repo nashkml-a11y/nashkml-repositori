@@ -46,6 +46,16 @@ locationsRouter.put("/:id", async (c) => {
   return c.json(updated);
 });
 
+locationsRouter.get("/:id/items", async (c) => {
+  const repo = createRepository(c.env.DB);
+  const id = Number(c.req.param("id"));
+  const location = await repo.locations.get(id);
+  if (!location) {
+    return c.json({ error: "No encontrada" }, 404);
+  }
+  return c.json(await repo.items.byLocation(id));
+});
+
 locationsRouter.delete("/:id", async (c) => {
   const repo = createRepository(c.env.DB);
   const result = await repo.locations.remove(Number(c.req.param("id")));

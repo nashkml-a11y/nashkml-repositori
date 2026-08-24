@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal } from "./Modal";
-import { api, type Location } from "../api";
+import { api, type Item, type Location } from "../api";
 
 interface LocationsModalProps {
   onClose: () => void;
@@ -16,6 +16,10 @@ export function LocationsModal({ onClose, onChanged }: LocationsModalProps) {
   const [errorMsg, setErrorMsg] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
+
+  const [viewingLocation, setViewingLocation] = useState<Location | null>(null);
+  const [locationItems, setLocationItems] = useState<Item[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
 
   async function reload() {
     setLoading(true);
@@ -68,6 +72,49 @@ export function LocationsModal({ onClose, onChanged }: LocationsModalProps) {
     }
   }
 
+  async function openLocationItems(loc: Location) {
+    setViewingLocation(loc);
+    setItemsLoading(true);
+    try {
+      setLocationItems(await api.listItemsByLocation(loc.id));
+    } finally {
+      setItemsLoading(false);
+    }
+  }
+
+  if (viewingLocation) {
+    return (
+      <Modal title={viewingLocation.name} onClose={onClose}>
+        <div className="flex flex-col gap-4">
+          <button
+            type="button"
+            onClick={() => setViewingLocation(null)}
+            className="self-start text-sm font-medium text-indigo-700"
+          >
+            ← Volver a ubicaciones
+          </button>
+
+          {itemsLoading && <p className="text-sm text-stone-400">Cargando...</p>}
+          {!itemsLoading && locationItems.length === 0 && (
+            <p className="text-sm text-stone-400">No hay objetos guardados en esta ubicación.</p>
+          )}
+          {!itemsLoading && locationItems.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {locationItems.map((item) => (
+                <div key={item.id} className="rounded-xl border border-stone-100 p-3">
+                  <p className="text-sm font-medium text-stone-900">{item.name}</p>
+                  {item.position_detail && (
+                    <p className="text-xs text-stone-400">{item.position_detail}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal title="Ubicaciones" onClose={onClose}>
       <div className="flex flex-col gap-5">
@@ -111,10 +158,14 @@ export function LocationsModal({ onClose, onChanged }: LocationsModalProps) {
                   className="flex-1 rounded-lg border border-stone-200 p-2 text-sm"
                 />
               ) : (
-                <div>
+                <button
+                  type="button"
+                  onClick={() => openLocationItems(loc)}
+                  className="flex-1 text-left"
+                >
                   <p className="text-sm font-medium text-stone-900">{loc.name}</p>
                   {loc.description && <p className="text-xs text-stone-400">{loc.description}</p>}
-                </div>
+                </button>
               )}
               <div className="flex shrink-0 gap-1">
                 {editingId === loc.id ? (

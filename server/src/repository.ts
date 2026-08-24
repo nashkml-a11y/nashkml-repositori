@@ -87,6 +87,18 @@ export function createRepository(db: D1Database) {
         .all<ItemWithLocation>();
       return results;
     },
+    async byLocation(locationId: number): Promise<ItemWithLocation[]> {
+      const { results } = await db
+        .prepare(
+          `SELECT items.*, locations.name as location_name
+           FROM items JOIN locations ON locations.id = items.location_id
+           WHERE items.location_id = ?
+           ORDER BY items.name COLLATE NOCASE`
+        )
+        .bind(locationId)
+        .all<ItemWithLocation>();
+      return results;
+    },
     async get(id: number): Promise<ItemWithLocation | undefined> {
       const row = await db
         .prepare(
