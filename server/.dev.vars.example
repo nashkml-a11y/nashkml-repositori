@@ -1,0 +1,4 @@
+# Copia este fichero a .dev.vars (no se versiona) para desarrollo local con
+# `wrangler dev`. En producción se define como secret:
+#   wrangler secret put ANTHROPIC_API_KEY
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx

@@ -1,29 +1,25 @@
 {
-  "name": "buscador-server",
+  "name": "buscador-worker",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "API backend for the home object finder PWA",
+  "description": "API backend (Cloudflare Worker + D1) for the home object finder PWA",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create buscador-db",
+    "db:migrate:local": "wrangler d1 migrations apply buscador-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply buscador-db --remote",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
-    "better-sqlite3": "^11.10.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.21.2",
-    "zod": "^3.24.1"
+    "hono": "^4.13.4",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.11",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/node": "^22.10.5",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "@cloudflare/workers-types": "^5.20260823.1",
+    "typescript": "^5.7.2",
+    "wrangler": "^4.125.0"
   }
 }

@@ -1,9 +1,10 @@
-import { Router } from "express";
+import { Hono } from "hono";
 import { z } from "zod";
-import { items as itemsRepo } from "../repository.js";
-import { semanticSearchItems } from "../ai.js";
+import type { Env } from "../types.js";
+import { createRepository } from "../repository.js";
+import { createAiClient } from "../ai.js";
 
-export const searchRouter = Router();
+export const searchRouter = new Hono<{ Bindings: Env }>();
 
 const SearchBody = z.object({ query: z.string().min(1) });
 
@@ -12,25 +13,25 @@ function formatAnswer(name: string, locationName: string, positionDetail: string
   return `${name} está en ${locationName}${positionPart}.`;
 }
 
-searchRouter.post("/", async (req, res) => {
-  const parsed = SearchBody.safeParse(req.body);
+searchRouter.post("/", async (c) => {
+  const repo = createRepository(c.env.DB);
+  const parsed = SearchBody.safeParse(await c.req.json());
   if (!parsed.success) {
-    res.status(400).json({ error: "Falta el campo 'query'" });
-    return;
+    return c.json({ error: "Falta el campo 'query'" }, 400);
   }
   const { query } = parsed.data;
 
-  const allItems = itemsRepo.all();
+  const allItems = await repo.items.all();
   if (allItems.length === 0) {
-    res.json({
+    return c.json({
       status: "not_found",
       answer: "Todavía no has guardado ningún objeto.",
     });
-    return;
   }
 
   try {
-    const matches = await semanticSearchItems(
+    const ai = createAiClient(c.env.ANTHROPIC_API_KEY);
+    const matches = await ai.semanticSearchItems(
       query,
       allItems.map((i) => ({
         id: i.id,
@@ -43,11 +44,10 @@ searchRouter.post("/", async (req, res) => {
     );
 
     if (matches.length === 0 || matches[0].confidence < 0.4) {
-      res.json({
+      return c.json({
         status: "not_found",
         answer: "No he encontrado ningún objeto guardado que coincida con tu búsqueda.",
       });
-      return;
     }
 
     const top = matches[0];
@@ -56,7 +56,7 @@ searchRouter.post("/", async (req, res) => {
 
     if (isClear) {
       const item = allItems.find((i) => i.id === top.item_id)!;
-      res.json({
+      return c.json({
         status: "found",
         answer: formatAnswer(item.name, item.location_name, item.position_detail),
         item: {
@@ -67,7 +67,6 @@ searchRouter.post("/", async (req, res) => {
           position_detail: item.position_detail,
         },
       });
-      return;
     }
 
     const candidates = matches.slice(0, 4).map((m) => {
@@ -81,27 +80,27 @@ searchRouter.post("/", async (req, res) => {
       };
     });
 
-    res.json({
+    return c.json({
       status: "ambiguous",
       answer: "He encontrado varias coincidencias. ¿Cuál de estas es?",
       candidates,
     });
   } catch (err) {
     console.error(err);
-    res.status(502).json({
-      status: "error",
-      answer: "No he podido completar la búsqueda. Inténtalo de nuevo.",
-    });
+    return c.json(
+      { status: "error", answer: "No he podido completar la búsqueda. Inténtalo de nuevo." },
+      502
+    );
   }
 });
 
-searchRouter.get("/item/:id", (req, res) => {
-  const item = itemsRepo.get(Number(req.params.id));
+searchRouter.get("/item/:id", async (c) => {
+  const repo = createRepository(c.env.DB);
+  const item = await repo.items.get(Number(c.req.param("id")));
   if (!item) {
-    res.status(404).json({ error: "No encontrado" });
-    return;
+    return c.json({ error: "No encontrado" }, 404);
   }
-  res.json({
+  return c.json({
     status: "found",
     answer: formatAnswer(item.name, item.location_name, item.position_detail),
     item: {

@@ -1,11 +1,13 @@
-import { Router } from "express";
+import { Hono } from "hono";
 import { z } from "zod";
-import { locations as locationsRepo } from "../repository.js";
+import type { Env } from "../types.js";
+import { createRepository } from "../repository.js";
 
-export const locationsRouter = Router();
+export const locationsRouter = new Hono<{ Bindings: Env }>();
 
-locationsRouter.get("/", (_req, res) => {
-  res.json(locationsRepo.all());
+locationsRouter.get("/", async (c) => {
+  const repo = createRepository(c.env.DB);
+  return c.json(await repo.locations.all());
 });
 
 const CreateBody = z.object({
@@ -13,18 +15,17 @@ const CreateBody = z.object({
   description: z.string().nullable().optional(),
 });
 
-locationsRouter.post("/", (req, res) => {
-  const parsed = CreateBody.safeParse(req.body);
+locationsRouter.post("/", async (c) => {
+  const repo = createRepository(c.env.DB);
+  const parsed = CreateBody.safeParse(await c.req.json());
   if (!parsed.success) {
-    res.status(400).json({ error: "El nombre de la ubicación es obligatorio" });
-    return;
+    return c.json({ error: "El nombre de la ubicación es obligatorio" }, 400);
   }
-  if (locationsRepo.findByName(parsed.data.name)) {
-    res.status(409).json({ error: "Ya existe una ubicación con ese nombre" });
-    return;
+  if (await repo.locations.findByName(parsed.data.name)) {
+    return c.json({ error: "Ya existe una ubicación con ese nombre" }, 409);
   }
-  const created = locationsRepo.create(parsed.data.name, parsed.data.description ?? null);
-  res.status(201).json(created);
+  const created = await repo.locations.create(parsed.data.name, parsed.data.description ?? null);
+  return c.json(created, 201);
 });
 
 const UpdateBody = z.object({
@@ -32,25 +33,24 @@ const UpdateBody = z.object({
   description: z.string().nullable().optional(),
 });
 
-locationsRouter.put("/:id", (req, res) => {
-  const parsed = UpdateBody.safeParse(req.body);
+locationsRouter.put("/:id", async (c) => {
+  const repo = createRepository(c.env.DB);
+  const parsed = UpdateBody.safeParse(await c.req.json());
   if (!parsed.success) {
-    res.status(400).json({ error: "Datos inválidos" });
-    return;
+    return c.json({ error: "Datos inválidos" }, 400);
   }
-  const updated = locationsRepo.update(Number(req.params.id), parsed.data);
+  const updated = await repo.locations.update(Number(c.req.param("id")), parsed.data);
   if (!updated) {
-    res.status(404).json({ error: "No encontrada" });
-    return;
+    return c.json({ error: "No encontrada" }, 404);
   }
-  res.json(updated);
+  return c.json(updated);
 });
 
-locationsRouter.delete("/:id", (req, res) => {
-  const result = locationsRepo.remove(Number(req.params.id));
+locationsRouter.delete("/:id", async (c) => {
+  const repo = createRepository(c.env.DB);
+  const result = await repo.locations.remove(Number(c.req.param("id")));
   if (!result.ok) {
-    res.status(409).json({ error: result.reason });
-    return;
+    return c.json({ error: result.reason }, 409);
   }
-  res.status(204).end();
+  return c.body(null, 204);
 });

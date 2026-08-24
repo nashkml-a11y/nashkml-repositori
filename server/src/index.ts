@@ -1,29 +1,31 @@
-import express from "express";
-import cors from "cors";
-import { config } from "./config.js";
-import "./db.js";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import type { Env } from "./types.js";
 import { searchRouter } from "./routes/search.js";
 import { itemsRouter } from "./routes/items.js";
 import { locationsRouter } from "./routes/locations.js";
 
-const app = express();
+const app = new Hono<{ Bindings: Env }>();
 
-app.use(cors({ origin: config.corsOrigin }));
-app.use(express.json());
+app.use(
+  "*",
+  cors({
+    origin: (origin, c) => {
+      const allowed = c.env.CORS_ORIGIN.split(",").map((o: string) => o.trim());
+      return allowed.includes(origin) ? origin : undefined;
+    },
+  })
+);
 
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true });
-});
+app.get("/api/health", (c) => c.json({ ok: true }));
 
-app.use("/api/search", searchRouter);
-app.use("/api/items", itemsRouter);
-app.use("/api/locations", locationsRouter);
+app.route("/api/search", searchRouter);
+app.route("/api/items", itemsRouter);
+app.route("/api/locations", locationsRouter);
 
-app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.onError((err, c) => {
   console.error(err);
-  res.status(500).json({ error: "Error interno del servidor" });
+  return c.json({ error: "Error interno del servidor" }, 500);
 });
 
-app.listen(config.port, () => {
-  console.log(`API escuchando en http://localhost:${config.port}`);
-});
+export default app;

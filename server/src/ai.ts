@@ -1,9 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod/v4";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { config } from "./config.js";
-
-const client = new Anthropic({ apiKey: config.anthropicApiKey });
 
 const MODEL = "claude-haiku-4-5";
 
@@ -64,49 +61,6 @@ export interface ExistingItem {
   location_name: string;
 }
 
-export async function extractItemFromText(
-  text: string,
-  existingLocations: ExistingLocation[],
-  existingItems: ExistingItem[]
-): Promise<ExtractionResult> {
-  const locationsList =
-    existingLocations.length > 0
-      ? existingLocations.map((l) => `- ${l.name}`).join("\n")
-      : "(no hay ubicaciones todavía)";
-  const itemsList =
-    existingItems.length > 0
-      ? existingItems.map((i) => `- id=${i.id}: ${i.name} (en ${i.location_name})`).join("\n")
-      : "(no hay objetos guardados todavía)";
-
-  const response = await client.messages.parse({
-    model: MODEL,
-    max_tokens: 4096,
-    system:
-      "Eres el motor de interpretación de una app para encontrar objetos guardados en casa. " +
-      "Extraes de una frase en español qué objeto se guarda, en qué ubicación y con qué detalle " +
-      "de posición. Debes intentar reutilizar ubicaciones y objetos existentes cuando el texto " +
-      "se refiera claramente a ellos, en vez de crear duplicados. Nunca inventes datos que el " +
-      "texto no aporte: si no hay detalle de posición, deja position_detail en null.",
-    messages: [
-      {
-        role: "user",
-        content:
-          `Ubicaciones existentes:\n${locationsList}\n\n` +
-          `Objetos ya guardados:\n${itemsList}\n\n` +
-          `Frase del usuario: "${text}"`,
-      },
-    ],
-    output_config: {
-      format: zodOutputFormat(ExtractionSchema),
-    },
-  });
-
-  if (!response.parsed_output) {
-    throw new Error("No se pudo interpretar el texto");
-  }
-  return response.parsed_output;
-}
-
 // ---------------------------------------------------------------------------
 // Búsqueda semántica: encontrar qué objeto(s) coinciden con una pregunta
 // ---------------------------------------------------------------------------
@@ -145,49 +99,100 @@ export interface SearchMatch {
   reason: string;
 }
 
-export async function semanticSearchItems(
-  query: string,
-  candidateItems: SearchableItem[]
-): Promise<SearchMatch[]> {
-  if (candidateItems.length === 0) return [];
+export function createAiClient(apiKey: string) {
+  const client = new Anthropic({ apiKey });
 
-  const itemsList = candidateItems
-    .map((i) => {
-      const parts = [
-        `id=${i.id}`,
-        `nombre="${i.name}"`,
-        i.description ? `descripción="${i.description}"` : null,
-        i.original_text ? `texto_original="${i.original_text}"` : null,
-        `ubicación="${i.location_name}"`,
-        i.position_detail ? `posición="${i.position_detail}"` : null,
-      ].filter(Boolean);
-      return `- ${parts.join(", ")}`;
-    })
-    .join("\n");
+  async function extractItemFromText(
+    text: string,
+    existingLocations: ExistingLocation[],
+    existingItems: ExistingItem[]
+  ): Promise<ExtractionResult> {
+    const locationsList =
+      existingLocations.length > 0
+        ? existingLocations.map((l) => `- ${l.name}`).join("\n")
+        : "(no hay ubicaciones todavía)";
+    const itemsList =
+      existingItems.length > 0
+        ? existingItems.map((i) => `- id=${i.id}: ${i.name} (en ${i.location_name})`).join("\n")
+        : "(no hay objetos guardados todavía)";
 
-  const response = await client.messages.parse({
-    model: MODEL,
-    max_tokens: 4096,
-    system:
-      "Eres el motor de búsqueda semántica de una app para encontrar objetos guardados en casa. " +
-      "Dada una pregunta del usuario y una lista de objetos guardados, decides cuáles objetos " +
-      "coinciden con lo que el usuario busca, aunque use sinónimos, descripciones aproximadas, " +
-      "nombres distintos, relaciones semánticas o tenga pequeñas erratas. " +
-      "NUNCA inventes objetos ni ubicaciones que no estén en la lista: solo puedes devolver ids " +
-      "que existan en ella. Si nada encaja razonablemente, devuelve una lista vacía.",
-    messages: [
-      {
-        role: "user",
-        content: `Objetos guardados:\n${itemsList}\n\nPregunta del usuario: "${query}"`,
+    const response = await client.messages.parse({
+      model: MODEL,
+      max_tokens: 4096,
+      system:
+        "Eres el motor de interpretación de una app para encontrar objetos guardados en casa. " +
+        "Extraes de una frase en español qué objeto se guarda, en qué ubicación y con qué detalle " +
+        "de posición. Debes intentar reutilizar ubicaciones y objetos existentes cuando el texto " +
+        "se refiera claramente a ellos, en vez de crear duplicados. Nunca inventes datos que el " +
+        "texto no aporte: si no hay detalle de posición, deja position_detail en null.",
+      messages: [
+        {
+          role: "user",
+          content:
+            `Ubicaciones existentes:\n${locationsList}\n\n` +
+            `Objetos ya guardados:\n${itemsList}\n\n` +
+            `Frase del usuario: "${text}"`,
+        },
+      ],
+      output_config: {
+        format: zodOutputFormat(ExtractionSchema),
       },
-    ],
-    output_config: {
-      format: zodOutputFormat(SearchMatchSchema),
-    },
-  });
+    });
 
-  if (!response.parsed_output) return [];
-  return response.parsed_output.matches
-    .filter((m: SearchMatch) => candidateItems.some((c) => c.id === m.item_id))
-    .sort((a: SearchMatch, b: SearchMatch) => b.confidence - a.confidence);
+    if (!response.parsed_output) {
+      throw new Error("No se pudo interpretar el texto");
+    }
+    return response.parsed_output;
+  }
+
+  async function semanticSearchItems(
+    query: string,
+    candidateItems: SearchableItem[]
+  ): Promise<SearchMatch[]> {
+    if (candidateItems.length === 0) return [];
+
+    const itemsList = candidateItems
+      .map((i) => {
+        const parts = [
+          `id=${i.id}`,
+          `nombre="${i.name}"`,
+          i.description ? `descripción="${i.description}"` : null,
+          i.original_text ? `texto_original="${i.original_text}"` : null,
+          `ubicación="${i.location_name}"`,
+          i.position_detail ? `posición="${i.position_detail}"` : null,
+        ].filter(Boolean);
+        return `- ${parts.join(", ")}`;
+      })
+      .join("\n");
+
+    const response = await client.messages.parse({
+      model: MODEL,
+      max_tokens: 4096,
+      system:
+        "Eres el motor de búsqueda semántica de una app para encontrar objetos guardados en casa. " +
+        "Dada una pregunta del usuario y una lista de objetos guardados, decides cuáles objetos " +
+        "coinciden con lo que el usuario busca, aunque use sinónimos, descripciones aproximadas, " +
+        "nombres distintos, relaciones semánticas o tenga pequeñas erratas. " +
+        "NUNCA inventes objetos ni ubicaciones que no estén en la lista: solo puedes devolver ids " +
+        "que existan en ella. Si nada encaja razonablemente, devuelve una lista vacía.",
+      messages: [
+        {
+          role: "user",
+          content: `Objetos guardados:\n${itemsList}\n\nPregunta del usuario: "${query}"`,
+        },
+      ],
+      output_config: {
+        format: zodOutputFormat(SearchMatchSchema),
+      },
+    });
+
+    if (!response.parsed_output) return [];
+    return response.parsed_output.matches
+      .filter((m: SearchMatch) => candidateItems.some((c) => c.id === m.item_id))
+      .sort((a: SearchMatch, b: SearchMatch) => b.confidence - a.confidence);
+  }
+
+  return { extractItemFromText, semanticSearchItems };
 }
+
+export type AiClient = ReturnType<typeof createAiClient>;

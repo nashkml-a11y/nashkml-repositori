@@ -1,36 +1,39 @@
-import { Router } from "express";
+import { Hono } from "hono";
 import { z } from "zod";
-import { items as itemsRepo, locations as locationsRepo } from "../repository.js";
-import { extractItemFromText } from "../ai.js";
+import type { Env } from "../types.js";
+import { createRepository } from "../repository.js";
+import { createAiClient } from "../ai.js";
 
-export const itemsRouter = Router();
+export const itemsRouter = new Hono<{ Bindings: Env }>();
 
-itemsRouter.get("/", (_req, res) => {
-  res.json(itemsRepo.all());
+itemsRouter.get("/", async (c) => {
+  const repo = createRepository(c.env.DB);
+  return c.json(await repo.items.all());
 });
 
 const ExtractBody = z.object({ text: z.string().min(1) });
 
-itemsRouter.post("/extract", async (req, res) => {
-  const parsed = ExtractBody.safeParse(req.body);
+itemsRouter.post("/extract", async (c) => {
+  const repo = createRepository(c.env.DB);
+  const parsed = ExtractBody.safeParse(await c.req.json());
   if (!parsed.success) {
-    res.status(400).json({ error: "Falta el campo 'text'" });
-    return;
+    return c.json({ error: "Falta el campo 'text'" }, 400);
   }
 
   try {
-    const allLocations = locationsRepo.all();
-    const allItems = itemsRepo.all();
-    const extraction = await extractItemFromText(
+    const ai = createAiClient(c.env.ANTHROPIC_API_KEY);
+    const allLocations = await repo.locations.all();
+    const allItems = await repo.items.all();
+    const extraction = await ai.extractItemFromText(
       parsed.data.text,
       allLocations.map((l) => ({ id: l.id, name: l.name })),
       allItems.map((i) => ({ id: i.id, name: i.name, location_name: i.location_name }))
     );
 
     // Re-verificamos la existencia real de la ubicación por si el modelo se equivoca
-    const matchedLocation = locationsRepo.findByName(extraction.location_name);
+    const matchedLocation = await repo.locations.findByName(extraction.location_name);
 
-    res.json({
+    return c.json({
       object_name: extraction.object_name,
       object_description: extraction.object_description,
       location_name: matchedLocation?.name ?? extraction.location_name,
@@ -42,7 +45,7 @@ itemsRouter.post("/extract", async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(502).json({ error: "No se pudo interpretar el texto. Inténtalo de nuevo." });
+    return c.json({ error: "No se pudo interpretar el texto. Inténtalo de nuevo." }, 502);
   }
 });
 
@@ -57,59 +60,57 @@ const ConfirmBody = z.object({
   is_location_update: z.boolean().optional(),
 });
 
-itemsRouter.post("/", (req, res) => {
-  const parsed = ConfirmBody.safeParse(req.body);
+itemsRouter.post("/", async (c) => {
+  const repo = createRepository(c.env.DB);
+  const parsed = ConfirmBody.safeParse(await c.req.json());
   if (!parsed.success) {
-    res.status(400).json({ error: "Datos incompletos", details: parsed.error.flatten() });
-    return;
+    return c.json({ error: "Datos incompletos", details: parsed.error.flatten() }, 400);
   }
   const data = parsed.data;
 
-  let location = locationsRepo.findByName(data.location_name);
+  let location = await repo.locations.findByName(data.location_name);
   if (!location) {
-    location = locationsRepo.create(data.location_name);
+    location = await repo.locations.create(data.location_name);
   }
 
   if (data.is_location_update && data.existing_item_id) {
-    const updated = itemsRepo.updateLocation(data.existing_item_id, {
+    const updated = await repo.items.updateLocation(data.existing_item_id, {
       location_id: location.id,
       position_detail: data.position_detail ?? null,
       note: data.original_text ?? "Actualización de ubicación",
     });
     if (!updated) {
-      res.status(404).json({ error: "El objeto que se quería actualizar no existe" });
-      return;
+      return c.json({ error: "El objeto que se quería actualizar no existe" }, 404);
     }
-    res.status(200).json(updated);
-    return;
+    return c.json(updated, 200);
   }
 
-  const created = itemsRepo.create({
+  const created = await repo.items.create({
     name: data.name,
     description: data.description ?? null,
     location_id: location.id,
     position_detail: data.position_detail ?? null,
     original_text: data.original_text ?? null,
   });
-  res.status(201).json(created);
+  return c.json(created, 201);
 });
 
-itemsRouter.get("/:id/movements", (req, res) => {
-  const item = itemsRepo.get(Number(req.params.id));
+itemsRouter.get("/:id/movements", async (c) => {
+  const repo = createRepository(c.env.DB);
+  const item = await repo.items.get(Number(c.req.param("id")));
   if (!item) {
-    res.status(404).json({ error: "No encontrado" });
-    return;
+    return c.json({ error: "No encontrado" }, 404);
   }
-  res.json(itemsRepo.movements(item.id));
+  return c.json(await repo.items.movements(item.id));
 });
 
-itemsRouter.delete("/:id", (req, res) => {
-  const id = Number(req.params.id);
-  const item = itemsRepo.get(id);
+itemsRouter.delete("/:id", async (c) => {
+  const repo = createRepository(c.env.DB);
+  const id = Number(c.req.param("id"));
+  const item = await repo.items.get(id);
   if (!item) {
-    res.status(404).json({ error: "No encontrado" });
-    return;
+    return c.json({ error: "No encontrado" }, 404);
   }
-  itemsRepo.remove(id);
-  res.status(204).end();
+  await repo.items.remove(id);
+  return c.body(null, 204);
 });
