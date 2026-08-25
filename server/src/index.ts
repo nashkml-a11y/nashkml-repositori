@@ -40,8 +40,7 @@ app.route("/api/locations", locationsRouter);
 
 app.onError((err, c) => {
   console.error(err);
-  // TEMPORAL: mensaje detallado para diagnosticar el 500 en producción.
-  return c.json({ error: `DEBUG: ${err instanceof Error ? err.stack ?? err.message : String(err)}` }, 500);
+  return c.json({ error: "Error interno del servidor" }, 500);
 });
 
 export default app;
