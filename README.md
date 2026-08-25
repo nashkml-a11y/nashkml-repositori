@@ -113,8 +113,11 @@ VITE_API_URL="https://buscador-api.<tu-subdominio>.workers.dev" npm run deploy
 ## Datos (Cloudflare D1 — SQLite)
 
 - `locations(id, name, description, created_at, updated_at)`
-- `items(id, name, description, location_id, position_detail, original_text, embedding, created_at, updated_at)`
+- `items(id, name, description, location_id, position_detail, original_text, embedding, photo, created_at, updated_at)`
 - `item_movements(...)` — historial de cambios de ubicación de cada objeto
+
+`photo` guarda, si se añadió una al registrar el objeto, una miniatura JPEG
+comprimida en el propio dispositivo, como data URL base64.
 
 La columna `embedding` en `items` está reservada para almacenar en el futuro un
 vector de embeddings si se quisiera mover la búsqueda semántica a un backend
