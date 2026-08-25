@@ -12,9 +12,6 @@ authRouter.post("/login", async (c) => {
   if (!parsed.success) {
     return c.json({ error: "Falta la contraseña" }, 400);
   }
-  if (!timingSafeEqual(parsed.data.password, c.env.APP_PASSWORD)) {
-    return c.json({ error: "Contraseña incorrecta" }, 401);
-  }
-  const token = await createToken(c.env.AUTH_SECRET);
-  return c.json({ token });
+  // TEMPORAL: qué claves de entorno ve realmente el Worker.
+  return c.json({ debugEnvKeys: Object.keys(c.env) }, 500);
 });
