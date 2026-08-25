@@ -40,6 +40,7 @@ export interface Item {
   location_name: string;
   position_detail: string | null;
   original_text: string | null;
+  photo: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -61,6 +62,7 @@ export interface SearchResult {
     description: string | null;
     location_name: string;
     position_detail: string | null;
+    photo: string | null;
   };
   candidates?: SearchCandidate[];
 }
@@ -93,7 +95,7 @@ export const api = {
   extractItem(text: string): Promise<ExtractionPreview> {
     return request("/api/items/extract", { method: "POST", body: JSON.stringify({ text }) });
   },
-  confirmItem(preview: ExtractionPreview): Promise<Item> {
+  confirmItem(preview: ExtractionPreview, photo: string | null): Promise<Item> {
     return request("/api/items", {
       method: "POST",
       body: JSON.stringify({
@@ -105,6 +107,7 @@ export const api = {
         original_text: preview.original_text,
         existing_item_id: preview.existing_item_id,
         is_location_update: preview.is_location_update,
+        photo,
       }),
     });
   },

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Modal } from "./Modal";
 import { api, type ExtractionPreview } from "../api";
 import { useSpeechRecognition, isSpeechRecognitionSupported } from "../useSpeechRecognition";
+import { compressImageToDataUrl } from "../image";
 
 interface SaveItemModalProps {
   onClose: () => void;
@@ -15,6 +16,8 @@ export function SaveItemModal({ onClose, onSaved }: SaveItemModalProps) {
   const [text, setText] = useState("");
   const [preview, setPreview] = useState<ExtractionPreview | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState("");
 
   const { isListening, start, error: speechError } = useSpeechRecognition((transcript) => {
     setText((prev) => (prev ? `${prev} ${transcript}` : transcript));
@@ -37,11 +40,21 @@ export function SaveItemModal({ onClose, onSaved }: SaveItemModalProps) {
     if (!preview) return;
     setStage("saving");
     try {
-      await api.confirmItem(preview);
+      await api.confirmItem(preview, photo);
       onSaved();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Algo ha fallado");
       setStage("error");
+    }
+  }
+
+  async function handlePhotoSelected(file: File | undefined) {
+    if (!file) return;
+    setPhotoError("");
+    try {
+      setPhoto(await compressImageToDataUrl(file));
+    } catch {
+      setPhotoError("No se pudo procesar la foto. Inténtalo de nuevo.");
     }
   }
 
@@ -115,6 +128,43 @@ export function SaveItemModal({ onClose, onSaved }: SaveItemModalProps) {
               </p>
             )}
           </div>
+
+          <div className="flex items-center gap-3">
+            {photo ? (
+              <img src={photo} alt="" className="h-16 w-16 rounded-xl object-cover" />
+            ) : (
+              <label className="flex h-16 w-16 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-stone-100 text-stone-400">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-7 w-7">
+                  <rect x="3" y="6" width="18" height="14" rx="2" />
+                  <circle cx="12" cy="13" r="3.5" />
+                  <path d="M9 6l1-2h4l1 2" />
+                </svg>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => handlePhotoSelected(e.target.files?.[0])}
+                />
+              </label>
+            )}
+            <div className="flex flex-col gap-1">
+              <span className="text-sm text-stone-500">
+                {photo ? "Foto añadida" : "Añadir foto (opcional)"}
+              </span>
+              {photo && (
+                <button
+                  type="button"
+                  onClick={() => setPhoto(null)}
+                  className="self-start text-xs font-medium text-red-500"
+                >
+                  Quitar foto
+                </button>
+              )}
+              {photoError && <p className="text-xs text-red-500">{photoError}</p>}
+            </div>
+          </div>
+
           <div className="flex gap-3">
             <button
               type="button"

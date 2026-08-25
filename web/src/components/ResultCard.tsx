@@ -34,10 +34,13 @@ export function ResultCard({ result, onPickCandidate }: ResultCardProps) {
 
   return (
     <div
-      className={`w-full rounded-3xl p-5 text-center shadow-sm ring-1 ${
+      className={`flex w-full flex-col items-center gap-3 rounded-3xl p-5 text-center shadow-sm ring-1 ${
         isFound ? "bg-indigo-50 ring-indigo-100" : "bg-white ring-stone-100"
       }`}
     >
+      {isFound && result.item?.photo && (
+        <img src={result.item.photo} alt="" className="h-24 w-24 rounded-2xl object-cover" />
+      )}
       <p className={`text-lg font-medium ${isFound ? "text-indigo-900" : "text-stone-500"}`}>
         {result.answer}
       </p>

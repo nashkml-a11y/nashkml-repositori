@@ -65,6 +65,7 @@ searchRouter.post("/", async (c) => {
           description: item.description,
           location_name: item.location_name,
           position_detail: item.position_detail,
+          photo: item.photo,
         },
       });
     }
@@ -109,6 +110,7 @@ searchRouter.get("/item/:id", async (c) => {
       description: item.description,
       location_name: item.location_name,
       position_detail: item.position_detail,
+      photo: item.photo,
     },
   });
 });

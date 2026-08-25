@@ -101,11 +101,16 @@ export function LocationsModal({ onClose, onChanged }: LocationsModalProps) {
           {!itemsLoading && locationItems.length > 0 && (
             <div className="flex flex-col gap-2">
               {locationItems.map((item) => (
-                <div key={item.id} className="rounded-xl border border-stone-100 p-3">
-                  <p className="text-sm font-medium text-stone-900">{item.name}</p>
-                  {item.position_detail && (
-                    <p className="text-xs text-stone-400">{item.position_detail}</p>
+                <div key={item.id} className="flex items-center gap-3 rounded-xl border border-stone-100 p-3">
+                  {item.photo && (
+                    <img src={item.photo} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
                   )}
+                  <div>
+                    <p className="text-sm font-medium text-stone-900">{item.name}</p>
+                    {item.position_detail && (
+                      <p className="text-xs text-stone-400">{item.position_detail}</p>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

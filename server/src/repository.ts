@@ -13,6 +13,7 @@ export interface Item {
   location_id: number;
   position_detail: string | null;
   original_text: string | null;
+  photo: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -116,18 +117,20 @@ export function createRepository(db: D1Database) {
       location_id: number;
       position_detail?: string | null;
       original_text?: string | null;
+      photo?: string | null;
     }): Promise<ItemWithLocation> {
       const inserted = await db
         .prepare(
-          `INSERT INTO items (name, description, location_id, position_detail, original_text)
-           VALUES (?, ?, ?, ?, ?) RETURNING id`
+          `INSERT INTO items (name, description, location_id, position_detail, original_text, photo)
+           VALUES (?, ?, ?, ?, ?, ?) RETURNING id`
         )
         .bind(
           data.name,
           data.description ?? null,
           data.location_id,
           data.position_detail ?? null,
-          data.original_text ?? null
+          data.original_text ?? null,
+          data.photo ?? null
         )
         .first<{ id: number }>();
       const created = (await items.get(inserted!.id))!;

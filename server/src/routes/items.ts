@@ -58,6 +58,7 @@ const ConfirmBody = z.object({
   original_text: z.string().nullable().optional(),
   existing_item_id: z.number().nullable().optional(),
   is_location_update: z.boolean().optional(),
+  photo: z.string().max(500_000).nullable().optional(),
 });
 
 itemsRouter.post("/", async (c) => {
@@ -91,6 +92,7 @@ itemsRouter.post("/", async (c) => {
     location_id: location.id,
     position_detail: data.position_detail ?? null,
     original_text: data.original_text ?? null,
+    photo: data.photo ?? null,
   });
   return c.json(created, 201);
 });
