@@ -1,7 +1,11 @@
 name = "buscador-web"
-pages_build_output_dir = "dist"
+compatibility_date = "2026-08-01"
 
-# VITE_API_URL se define como variable de entorno del proyecto de Cloudflare
-# Pages (Settings → Environment variables), no aquí: Vite la incrusta en el
-# build en tiempo de compilación, así que tiene que existir ANTES de
-# `npm run build` (Pages la inyecta automáticamente si la configuras allí).
+# Sirve la PWA como assets estáticos de un Worker (el reemplazo actual de
+# Cloudflare Pages para proyectos nuevos). "dist" lo genera `npm run build`.
+[assets]
+directory = "dist"
+
+# VITE_API_URL se define como variable de entorno del proyecto (Settings →
+# Variables and Secrets), no aquí: Vite la incrusta en el build en tiempo de
+# compilación, así que tiene que existir ANTES de `npm run build`.
