@@ -13,7 +13,7 @@ CORS_ORIGIN = "http://localhost:5173"
 [[d1_databases]]
 binding = "DB"
 database_name = "buscador-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "b0c45a78-2750-4a58-a11e-55d118b61009"
 
 # La clave de Anthropic NO va aquí (este fichero se versiona en git).
 # Se define como secret: `wrangler secret put ANTHROPIC_API_KEY`
