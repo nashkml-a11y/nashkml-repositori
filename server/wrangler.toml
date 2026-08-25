@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 # Orígenes permitidos para CORS. En local incluye el puerto de "vite dev";
 # en producción añade la URL de tu proyecto de Cloudflare Pages.
 [vars]
-CORS_ORIGIN = "http://localhost:5173"
+CORS_ORIGIN = "http://localhost:5173,https://nashkml-web.nashkml.workers.dev"
 
 # Creada con `npm run db:create`. Sustituye database_id por el que te
 # devuelva ese comando y aplica las migraciones con `npm run db:migrate:*`.
