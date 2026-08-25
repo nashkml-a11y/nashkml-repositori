@@ -13,5 +13,5 @@ authRouter.post("/login", async (c) => {
     return c.json({ error: "Falta la contraseña" }, 400);
   }
   // TEMPORAL: qué claves de entorno ve realmente el Worker.
-  return c.json({ debugEnvKeys: Object.keys(c.env) }, 500);
+  return c.json({ error: `DEBUG env keys: ${JSON.stringify(Object.keys(c.env))}` }, 500);
 });
