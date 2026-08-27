@@ -18,6 +18,7 @@ export default defineConfig(async () => {
             // aislamiento (no tocan /api/search ni /api/items/extract).
             AUTH_SECRET: "test-secret-solo-para-vitest",
             CORS_ORIGIN: "http://localhost:5173",
+            REGISTRATION_CODE: "test-registration-code",
           },
         },
       }),

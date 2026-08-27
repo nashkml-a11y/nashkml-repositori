@@ -3,6 +3,9 @@ export interface Env {
   ANTHROPIC_API_KEY: string;
   CORS_ORIGIN: string;
   AUTH_SECRET: string;
+  // Código de invitación: hay que conocerlo para poder registrarte. Cierra
+  // el registro público sin necesidad de gestionar invitaciones por persona.
+  REGISTRATION_CODE: string;
 }
 
 // Variables de contexto de Hono (no bindings): el middleware de auth deja

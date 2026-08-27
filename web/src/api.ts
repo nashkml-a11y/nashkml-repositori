@@ -85,10 +85,10 @@ export interface AuthUser {
 }
 
 export const api = {
-  async register(email: string, password: string, displayName?: string): Promise<AuthUser> {
+  async register(email: string, password: string, code: string, displayName?: string): Promise<AuthUser> {
     const { token, user } = await request<{ token: string; user: AuthUser }>("/api/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password, display_name: displayName || undefined }),
+      body: JSON.stringify({ email, password, code, display_name: displayName || undefined }),
     });
     setToken(token);
     return user;

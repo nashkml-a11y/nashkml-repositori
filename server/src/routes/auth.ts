@@ -4,6 +4,7 @@ import type { Env, Variables } from "../types.js";
 import { createToken, verifyToken } from "../auth.js";
 import { hashPassword, verifyPassword } from "../password.js";
 import { createUsersRepository } from "../users.js";
+import { timingSafeEqual } from "../crypto-utils.js";
 
 export const authRouter = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -15,12 +16,16 @@ const RegisterBody = z.object({
   email: z.string().email("Email no válido"),
   password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
   display_name: z.string().min(1).nullable().optional(),
+  code: z.string().min(1, "Falta el código de invitación"),
 });
 
 authRouter.post("/register", async (c) => {
   const parsed = RegisterBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, 400);
+  }
+  if (!timingSafeEqual(parsed.data.code, c.env.REGISTRATION_CODE)) {
+    return c.json({ error: "Código de invitación incorrecto" }, 403);
   }
   const users = createUsersRepository(c.env.DB);
   const email = parsed.data.email.toLowerCase();

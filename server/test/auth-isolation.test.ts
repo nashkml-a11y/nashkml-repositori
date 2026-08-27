@@ -6,11 +6,13 @@ interface AuthResponse {
   user: { id: string; email: string; display_name: string | null };
 }
 
+const VALID_CODE = "test-registration-code";
+
 async function register(email: string, password: string): Promise<AuthResponse> {
   const res = await SELF.fetch("https://example.com/api/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, code: VALID_CODE }),
   });
   expect(res.status).toBe(201);
   return res.json();
@@ -26,9 +28,22 @@ describe("registro y login", () => {
     const res = await SELF.fetch("https://example.com/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "dup@isolation-test.com", password: "otra12345" }),
+      body: JSON.stringify({ email: "dup@isolation-test.com", password: "otra12345", code: VALID_CODE }),
     });
     expect(res.status).toBe(409);
+  });
+
+  it("rechaza el registro sin código de invitación válido", async () => {
+    const res = await SELF.fetch("https://example.com/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "sincodigo@isolation-test.com",
+        password: "password123",
+        code: "codigo-incorrecto",
+      }),
+    });
+    expect(res.status).toBe(403);
   });
 
   it("rechaza una contraseña incorrecta", async () => {

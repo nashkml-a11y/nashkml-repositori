@@ -12,19 +12,20 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email || !password) return;
+    if (!email || !password || (mode === "register" && !code)) return;
     setLoading(true);
     setErrorMsg("");
     try {
       if (mode === "login") {
         await api.login(email, password);
       } else {
-        await api.register(email, password, displayName.trim() || undefined);
+        await api.register(email, password, code, displayName.trim() || undefined);
       }
       onSuccess();
     } catch (err) {
@@ -47,13 +48,22 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
       </p>
       <form onSubmit={handleSubmit} className="mt-8 flex w-full flex-col gap-3">
         {mode === "register" && (
-          <input
-            type="text"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Tu nombre (opcional)"
-            className="w-full rounded-2xl border border-stone-200 bg-white p-4 text-base text-stone-900 focus:border-indigo-400 focus:outline-none"
-          />
+          <>
+            <input
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Tu nombre (opcional)"
+              className="w-full rounded-2xl border border-stone-200 bg-white p-4 text-base text-stone-900 focus:border-indigo-400 focus:outline-none"
+            />
+            <input
+              type="text"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Código de invitación"
+              className="w-full rounded-2xl border border-stone-200 bg-white p-4 text-base text-stone-900 focus:border-indigo-400 focus:outline-none"
+            />
+          </>
         )}
         <input
           type="email"
@@ -75,7 +85,7 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
         {errorMsg && <p className="text-center text-sm text-red-500">{errorMsg}</p>}
         <button
           type="submit"
-          disabled={!email || !password || loading}
+          disabled={!email || !password || (mode === "register" && !code) || loading}
           className="rounded-2xl bg-indigo-700 py-3 text-base font-medium text-white disabled:opacity-40"
         >
           {loading ? "Un momento..." : mode === "login" ? "Entrar" : "Crear cuenta"}

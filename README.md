@@ -1,7 +1,8 @@
 # MAPA
 
-App instalable, pensada para móvil, cuya función principal es responder en lenguaje
-natural (texto o voz) a la pregunta **"¿dónde tengo guardado esto?"**, a partir de
+**M**emoria **A**sistida de **P**osición y **A**lmacenamiento. App instalable,
+pensada para móvil, cuya función principal es responder en lenguaje natural
+(texto o voz) a la pregunta **"¿dónde tengo guardado esto?"**, a partir de
 objetos y ubicaciones que tú mismo registras con frases naturales.
 
 La búsqueda usa IA para entender sinónimos, descripciones aproximadas o distintas
@@ -32,9 +33,10 @@ cd server
 npm install
 npm run db:migrate:local        # crea el esquema en una D1 local (SQLite en disco)
 cp .dev.vars.example .dev.vars
-# Edita .dev.vars: ANTHROPIC_API_KEY, APP_PASSWORD (la contraseña de entrada a
-# la app) y AUTH_SECRET (clave aleatoria para firmar la sesión, no la contraseña)
+# Edita .dev.vars: ANTHROPIC_API_KEY, AUTH_SECRET (clave aleatoria para firmar
+# la sesión) y REGISTRATION_CODE (hay que introducirlo para poder registrarse)
 npm run dev                     # wrangler dev, por defecto en http://localhost:8787
+npm test                        # tests (incluye el aislamiento entre usuarios)
 ```
 
 ### 2. Frontend
@@ -57,8 +59,8 @@ Puedes desplegar por terminal (`wrangler`) o conectando el repositorio por Git
 desde el dashboard de Cloudflare. Si usas Git, ten en cuenta dos cosas
 aprendidas por las malas al montar esto la primera vez:
 
-1. Las secrets (`ANTHROPIC_API_KEY`, `APP_PASSWORD`, `AUTH_SECRET`) hay que
-   ponerlas en la sección **"Runtime variables and secrets"** del Worker —
+1. Las secrets (`ANTHROPIC_API_KEY`, `AUTH_SECRET`, `REGISTRATION_CODE`) hay
+   que ponerlas en la sección **"Runtime variables and secrets"** del Worker —
    *no* en el panel general de "Variables and Secrets" del build, que es solo
    para el proceso de compilación y no llega al Worker en ejecución.
 2. El **"Deploy command"** del proyecto debe ser `npx wrangler deploy --keep-vars`
@@ -73,18 +75,20 @@ npm run db:create                       # crea la base D1 y muestra su database_
 # copia ese database_id en wrangler.toml, sustituyendo REPLACE_WITH_YOUR_D1_DATABASE_ID
 npm run db:migrate:remote               # aplica el esquema a la D1 real
 npx wrangler secret put ANTHROPIC_API_KEY
-npx wrangler secret put APP_PASSWORD    # la contraseña con la que entrarás a la app
-npx wrangler secret put AUTH_SECRET     # cadena aleatoria para firmar la sesión, p.ej. `openssl rand -base64 32`
-npm run deploy                          # publica el Worker
+npx wrangler secret put AUTH_SECRET       # cadena aleatoria para firmar la sesión, p.ej. `openssl rand -base64 32`
+npx wrangler secret put REGISTRATION_CODE # hay que saber este código para poder registrarse
+npm run deploy                            # publica el Worker
 ```
 
 (`wrangler secret put` ya hace lo correcto — el matiz de "Runtime variables and
 secrets" de arriba solo aplica si las añades a mano desde el dashboard en vez de
 por CLI.)
 
-La app entera queda detrás de esa contraseña: sin ella, la API rechaza cualquier
-petición (salvo `/api/health` y el propio login) con `401`, así que aunque alguien
-tenga la URL pública no puede ver ni usar tus datos.
+Toda la API queda detrás de una cuenta (email + contraseña, `POST /api/auth/login`):
+sin sesión válida, cualquier ruta (salvo `/api/health` y el propio login/registro)
+responde `401`. El registro, además, exige el `REGISTRATION_CODE` — sin él nadie
+puede crear una cuenta nueva, así que aunque alguien tenga la URL pública no
+puede usar tu cuota de la API de IA sin que tú le des ese código.
 
 Al desplegar, `wrangler` te da la URL pública del Worker (algo como
 `https://mapa-api.<tu-subdominio>.workers.dev`). Si el subdominio `workers.dev`
@@ -101,11 +105,18 @@ VITE_API_URL="https://mapa-api.<tu-subdominio>.workers.dev" npm run deploy
 
 ## Cómo funciona
 
-- **Buscar** (`POST /api/search`): compara la pregunta contra todos los objetos
-  guardados usando el modelo de IA como motor de búsqueda semántica (sinónimos,
-  erratas, descripciones aproximadas). Si hay una coincidencia clara, responde
-  directamente con la ubicación; si hay varias razonables, pide al usuario que
-  elija; si no encuentra nada, lo dice explícitamente — nunca inventa una ubicación.
+- **Cuentas**: cada usuario tiene su propio inventario, completamente aislado
+  del de los demás (`POST /api/auth/register` con `REGISTRATION_CODE`,
+  `POST /api/auth/login`, `GET /api/auth/me`). Toda consulta a
+  `locations`/`items`/`item_movements` pasa por `createRepository(db, userId)`,
+  que filtra siempre por el usuario autenticado — ver `server/test/` para los
+  tests que verifican ese aislamiento.
+- **Buscar** (`POST /api/search`): compara la pregunta contra los objetos
+  guardados por ese usuario usando el modelo de IA como motor de búsqueda
+  semántica (sinónimos, erratas, descripciones aproximadas). Si hay una
+  coincidencia clara, responde directamente con la ubicación; si hay varias
+  razonables, pide al usuario que elija; si no encuentra nada, lo dice
+  explícitamente — nunca inventa una ubicación.
 - **Guardar objeto** (`POST /api/items/extract` + `POST /api/items`): la IA extrae
   objeto, ubicación y detalle de posición de una frase libre, se muestra una
   confirmación, y solo entonces se guarda. Si la frase describe un objeto ya
@@ -116,9 +127,13 @@ VITE_API_URL="https://mapa-api.<tu-subdominio>.workers.dev" npm run deploy
 
 ## Datos (Cloudflare D1 — SQLite)
 
-- `locations(id, name, description, created_at, updated_at)`
-- `items(id, name, description, location_id, position_detail, original_text, embedding, photo, created_at, updated_at)`
-- `item_movements(...)` — historial de cambios de ubicación de cada objeto
+- `users(id, email, password_hash, display_name, created_at, updated_at)`
+- `locations(id, name, description, user_id, created_at, updated_at)`
+- `items(id, name, description, location_id, position_detail, original_text, embedding, photo, user_id, created_at, updated_at)`
+- `item_movements(..., user_id)` — historial de cambios de ubicación de cada objeto
+
+`password_hash` es PBKDF2-SHA256 (210 000 iteraciones) vía `crypto.subtle`
+nativo del runtime de Workers — sin dependencias externas.
 
 `photo` guarda, si se añadió una al registrar el objeto, una miniatura JPEG
 comprimida en el propio dispositivo, como data URL base64.
