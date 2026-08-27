@@ -1,4 +1,4 @@
-name = "buscador-api"
+name = "mapa-api"
 main = "src/index.ts"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]

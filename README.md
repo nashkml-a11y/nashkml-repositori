@@ -1,4 +1,4 @@
-# Buscador de objetos — PWA
+# MAPA
 
 App instalable, pensada para móvil, cuya función principal es responder en lenguaje
 natural (texto o voz) a la pregunta **"¿dónde tengo guardado esto?"**, a partir de
@@ -9,15 +9,15 @@ formas de nombrar un objeto (p. ej. preguntar por "el aparato que hace niebla"
 encuentra la "máquina de humo"). Guardar objetos y crear ubicaciones existe, pero
 queda deliberadamente en segundo plano frente al buscador.
 
-Este repositorio contiene dos proyectos independientes, pensados para desplegarse
-en Cloudflare:
+Este repositorio contiene dos proyectos independientes, desplegados como Workers
+de Cloudflare:
 
 - **`server/`** — API backend: **Cloudflare Worker** (Hono) + **Cloudflare D1**
   (SQLite gestionado). Guarda ubicaciones, objetos e historial de movimientos, y
   es el único componente que llama a la API de Claude (Anthropic) — la clave
   nunca se expone al navegador.
-- **`web/`** — Frontend PWA (React + Vite + Tailwind) desplegable en
-  **Cloudflare Pages**, optimizado para móvil, instalable, con entrada de voz
+- **`web/`** — Frontend PWA (React + Vite + Tailwind), servido como assets
+  estáticos de un Worker, optimizado para móvil, instalable, con entrada de voz
   mediante la Web Speech API.
 
 (`firmware/` y `hardware/` son contenido previo del repositorio, no relacionado con
@@ -53,8 +53,17 @@ Safari/iOS puedes instalarla como app desde el menú del navegador.
 
 ## Despliegue en Cloudflare
 
-Necesitas una cuenta de Cloudflare y `wrangler` autenticado (`npx wrangler login`
-dentro de `server/` o `web/`).
+Puedes desplegar por terminal (`wrangler`) o conectando el repositorio por Git
+desde el dashboard de Cloudflare. Si usas Git, ten en cuenta dos cosas
+aprendidas por las malas al montar esto la primera vez:
+
+1. Las secrets (`ANTHROPIC_API_KEY`, `APP_PASSWORD`, `AUTH_SECRET`) hay que
+   ponerlas en la sección **"Runtime variables and secrets"** del Worker —
+   *no* en el panel general de "Variables and Secrets" del build, que es solo
+   para el proceso de compilación y no llega al Worker en ejecución.
+2. El **"Deploy command"** del proyecto debe ser `npx wrangler deploy --keep-vars`
+   (con `--keep-vars`), o cada redeploy automático por Git borrará esas
+   variables porque no están declaradas en `wrangler.toml`.
 
 ### Backend — Worker + D1
 
@@ -69,30 +78,25 @@ npx wrangler secret put AUTH_SECRET     # cadena aleatoria para firmar la sesió
 npm run deploy                          # publica el Worker
 ```
 
+(`wrangler secret put` ya hace lo correcto — el matiz de "Runtime variables and
+secrets" de arriba solo aplica si las añades a mano desde el dashboard en vez de
+por CLI.)
+
 La app entera queda detrás de esa contraseña: sin ella, la API rechaza cualquier
 petición (salvo `/api/health` y el propio login) con `401`, así que aunque alguien
 tenga la URL pública no puede ver ni usar tus datos.
 
 Al desplegar, `wrangler` te da la URL pública del Worker (algo como
-`https://buscador-api.<tu-subdominio>.workers.dev`). Edita `CORS_ORIGIN` en
-`wrangler.toml` para incluir la URL de tu proyecto de Pages (puedes poner varias
-separadas por comas) y vuelve a desplegar.
+`https://mapa-api.<tu-subdominio>.workers.dev`). Si el subdominio `workers.dev`
+aparece como "Disabled" en el dashboard (Settings → Domains), actívalo para que
+la URL sea accesible. Edita `CORS_ORIGIN` en `wrangler.toml` para incluir la URL
+de tu frontend (puedes poner varias separadas por comas) y vuelve a desplegar.
 
-### Frontend — Pages
-
-En el dashboard de Cloudflare (Workers & Pages → Create → Pages) conecta este
-repositorio con:
-
-- Directorio de la app: `web`
-- Comando de build: `npm run build`
-- Directorio de salida: `dist`
-- Variable de entorno `VITE_API_URL` = URL pública del Worker del paso anterior
-
-O bien despliega directamente desde la terminal:
+### Frontend
 
 ```bash
 cd web
-VITE_API_URL="https://buscador-api.<tu-subdominio>.workers.dev" npm run deploy
+VITE_API_URL="https://mapa-api.<tu-subdominio>.workers.dev" npm run deploy
 ```
 
 ## Cómo funciona

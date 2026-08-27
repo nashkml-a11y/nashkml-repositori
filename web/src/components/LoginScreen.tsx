@@ -27,7 +27,7 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center px-6">
-      <h1 className="text-center text-2xl font-semibold text-stone-900">Buscador de objetos</h1>
+      <h1 className="text-center text-2xl font-semibold text-stone-900">MAPA</h1>
       <p className="mt-2 text-center text-sm text-stone-500">Introduce la contraseña para entrar.</p>
       <form onSubmit={handleSubmit} className="mt-8 flex w-full flex-col gap-3">
         <input

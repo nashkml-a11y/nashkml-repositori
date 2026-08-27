@@ -1,4 +1,4 @@
-# Buscador — frontend (PWA)
+# MAPA — frontend (PWA)
 
 App instalable (React + Vite + Tailwind + `vite-plugin-pwa`) para preguntar en lenguaje
 natural dónde has guardado cada objeto de casa. Ver el README raíz del repositorio para
@@ -19,7 +19,7 @@ npm run build   # genera dist/ con el manifest y el service worker
 npm run preview
 ```
 
-## Despliegue en Cloudflare Pages
+## Despliegue en Cloudflare
 
 ```bash
 VITE_API_URL="https://tu-worker.workers.dev" npm run deploy

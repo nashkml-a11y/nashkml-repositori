@@ -12,8 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Buscador de objetos',
-        short_name: 'Buscador',
+        name: 'MAPA',
+        short_name: 'MAPA',
         description: 'Encuentra al instante dónde has guardado cada objeto en casa',
         theme_color: '#4338CA',
         background_color: '#FAFAF9',

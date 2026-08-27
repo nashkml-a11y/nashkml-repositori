@@ -1,9 +1,9 @@
 {
-  "name": "buscador-worker",
+  "name": "mapa-worker",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "API backend (Cloudflare Worker + D1) for the home object finder PWA",
+  "description": "API backend (Cloudflare Worker + D1) for MAPA, the home object finder PWA",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",

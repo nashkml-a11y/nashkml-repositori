@@ -1,5 +1,5 @@
 {
-  "name": "web",
+  "name": "mapa-web",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "deploy": "npm run build && wrangler pages deploy"
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "react": "^19.2.8",
