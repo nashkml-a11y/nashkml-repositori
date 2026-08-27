@@ -1,10 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import type { Env } from "../types.js";
+import type { Env, Variables } from "../types.js";
 import { createRepository } from "../repository.js";
 import { createAiClient } from "../ai.js";
 
-export const searchRouter = new Hono<{ Bindings: Env }>();
+export const searchRouter = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 const SearchBody = z.object({ query: z.string().min(1) });
 
@@ -14,7 +14,7 @@ function formatAnswer(name: string, locationName: string, positionDetail: string
 }
 
 searchRouter.post("/", async (c) => {
-  const repo = createRepository(c.env.DB);
+  const repo = createRepository(c.env.DB, c.get("userId"));
   const parsed = SearchBody.safeParse(await c.req.json());
   if (!parsed.success) {
     return c.json({ error: "Falta el campo 'query'" }, 400);
@@ -96,7 +96,7 @@ searchRouter.post("/", async (c) => {
 });
 
 searchRouter.get("/item/:id", async (c) => {
-  const repo = createRepository(c.env.DB);
+  const repo = createRepository(c.env.DB, c.get("userId"));
   const item = await repo.items.get(Number(c.req.param("id")));
   if (!item) {
     return c.json({ error: "No encontrado" }, 404);

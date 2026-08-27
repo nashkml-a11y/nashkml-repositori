@@ -10,7 +10,8 @@
     "db:create": "wrangler d1 create buscador-db",
     "db:migrate:local": "wrangler d1 migrations apply buscador-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply buscador-db --remote",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
@@ -18,8 +19,10 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
     "@cloudflare/workers-types": "^5.20260823.1",
     "typescript": "^5.7.2",
+    "vitest": "^4.1.11",
     "wrangler": "^4.125.0"
   }
 }

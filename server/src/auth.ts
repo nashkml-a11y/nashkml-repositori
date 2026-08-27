@@ -1,22 +1,18 @@
+import { toBase64Url, fromBase64Url } from "./crypto-utils.js";
+
+// Token de sesión = payload.firma, ambos en base64url, firmados con HMAC-SHA256.
+// No es JWT estándar (no hace falta: claims fijos, sin cabecera ni alg
+// negociable) pero sigue el mismo principio: firma verificable sin guardar
+// sesiones en la base de datos. El payload lleva el user_id (`sub`), así que
+// cada petición autenticada sabe de quién son los datos que puede tocar.
+const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 días
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-// Token de sesión = payload.firma, ambos en base64url, firmados con HMAC-SHA256.
-// No es JWT estándar (no hace falta: un único claim, sin cabecera ni alg negociable)
-// pero sigue el mismo principio: firma verificable sin guardar sesiones en la base de datos.
-const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 días
-
-function toBase64Url(bytes: ArrayBuffer | Uint8Array): string {
-  const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  let str = "";
-  for (const b of arr) str += String.fromCharCode(b);
-  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function fromBase64Url(str: string): Uint8Array {
-  const padded = str.replace(/-/g, "+").replace(/_/g, "/").padEnd(str.length + ((4 - (str.length % 4)) % 4), "=");
-  const bin = atob(padded);
-  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+interface TokenPayload {
+  sub: string; // user_id
+  exp: number;
 }
 
 async function getKey(secret: string): Promise<CryptoKey> {
@@ -26,18 +22,21 @@ async function getKey(secret: string): Promise<CryptoKey> {
   ]);
 }
 
-export async function createToken(secret: string): Promise<string> {
-  const payload = JSON.stringify({ exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS });
-  const payloadB64 = toBase64Url(encoder.encode(payload));
+export async function createToken(secret: string, userId: string): Promise<string> {
+  const payload: TokenPayload = { sub: userId, exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS };
+  const payloadB64 = toBase64Url(encoder.encode(JSON.stringify(payload)));
   const key = await getKey(secret);
   const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(payloadB64));
   return `${payloadB64}.${toBase64Url(signature)}`;
 }
 
-export async function verifyToken(secret: string, token: string | undefined | null): Promise<boolean> {
-  if (!token) return false;
+export async function verifyToken(
+  secret: string,
+  token: string | undefined | null
+): Promise<{ userId: string } | null> {
+  if (!token) return null;
   const parts = token.split(".");
-  if (parts.length !== 2) return false;
+  if (parts.length !== 2) return null;
   const [payloadB64, signatureB64] = parts;
 
   try {
@@ -48,22 +47,13 @@ export async function verifyToken(secret: string, token: string | undefined | nu
       fromBase64Url(signatureB64),
       encoder.encode(payloadB64)
     );
-    if (!valid) return false;
+    if (!valid) return null;
 
-    const payload = JSON.parse(decoder.decode(fromBase64Url(payloadB64))) as { exp?: number };
-    return typeof payload.exp === "number" && payload.exp > Math.floor(Date.now() / 1000);
+    const payload = JSON.parse(decoder.decode(fromBase64Url(payloadB64))) as Partial<TokenPayload>;
+    if (typeof payload.sub !== "string" || typeof payload.exp !== "number") return null;
+    if (payload.exp <= Math.floor(Date.now() / 1000)) return null;
+    return { userId: payload.sub };
   } catch {
-    return false;
+    return null;
   }
-}
-
-// Comparación en tiempo constante para no filtrar por temporización cuánto
-// de la contraseña coincide.
-export function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
 }

@@ -11,7 +11,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     },
     ...options,
   });
-  if (res.status === 401 && path !== "/api/auth/login") {
+  if (res.status === 401 && path !== "/api/auth/login" && path !== "/api/auth/register") {
     clearToken();
     window.dispatchEvent(new Event("auth-expired"));
     throw new AuthError();
@@ -78,13 +78,38 @@ export interface ExtractionPreview {
   original_text: string;
 }
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  display_name: string | null;
+}
+
 export const api = {
-  async login(password: string): Promise<void> {
-    const { token } = await request<{ token: string }>("/api/auth/login", {
+  async register(email: string, password: string, displayName?: string): Promise<AuthUser> {
+    const { token, user } = await request<{ token: string; user: AuthUser }>("/api/auth/register", {
       method: "POST",
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ email, password, display_name: displayName || undefined }),
     });
     setToken(token);
+    return user;
+  },
+  async login(email: string, password: string): Promise<AuthUser> {
+    const { token, user } = await request<{ token: string; user: AuthUser }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+    setToken(token);
+    return user;
+  },
+  async logout(): Promise<void> {
+    try {
+      await request("/api/auth/logout", { method: "POST" });
+    } finally {
+      clearToken();
+    }
+  },
+  me(): Promise<AuthUser> {
+    return request("/api/auth/me");
   },
   search(query: string): Promise<SearchResult> {
     return request("/api/search", { method: "POST", body: JSON.stringify({ query }) });

@@ -1,20 +1,20 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import type { Env } from "../types.js";
+import type { Env, Variables } from "../types.js";
 import { createRepository } from "../repository.js";
 import { createAiClient } from "../ai.js";
 
-export const itemsRouter = new Hono<{ Bindings: Env }>();
+export const itemsRouter = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 itemsRouter.get("/", async (c) => {
-  const repo = createRepository(c.env.DB);
+  const repo = createRepository(c.env.DB, c.get("userId"));
   return c.json(await repo.items.all());
 });
 
 const ExtractBody = z.object({ text: z.string().min(1) });
 
 itemsRouter.post("/extract", async (c) => {
-  const repo = createRepository(c.env.DB);
+  const repo = createRepository(c.env.DB, c.get("userId"));
   const parsed = ExtractBody.safeParse(await c.req.json());
   if (!parsed.success) {
     return c.json({ error: "Falta el campo 'text'" }, 400);
@@ -62,7 +62,7 @@ const ConfirmBody = z.object({
 });
 
 itemsRouter.post("/", async (c) => {
-  const repo = createRepository(c.env.DB);
+  const repo = createRepository(c.env.DB, c.get("userId"));
   const parsed = ConfirmBody.safeParse(await c.req.json());
   if (!parsed.success) {
     return c.json({ error: "Datos incompletos", details: parsed.error.flatten() }, 400);
@@ -98,7 +98,7 @@ itemsRouter.post("/", async (c) => {
 });
 
 itemsRouter.get("/:id/movements", async (c) => {
-  const repo = createRepository(c.env.DB);
+  const repo = createRepository(c.env.DB, c.get("userId"));
   const item = await repo.items.get(Number(c.req.param("id")));
   if (!item) {
     return c.json({ error: "No encontrado" }, 404);
@@ -107,7 +107,7 @@ itemsRouter.get("/:id/movements", async (c) => {
 });
 
 itemsRouter.delete("/:id", async (c) => {
-  const repo = createRepository(c.env.DB);
+  const repo = createRepository(c.env.DB, c.get("userId"));
   const id = Number(c.req.param("id"));
   const item = await repo.items.get(id);
   if (!item) {

@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import type { Env } from "../types.js";
+import type { Env, Variables } from "../types.js";
 import { createRepository } from "../repository.js";
 
-export const locationsRouter = new Hono<{ Bindings: Env }>();
+export const locationsRouter = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 locationsRouter.get("/", async (c) => {
-  const repo = createRepository(c.env.DB);
+  const repo = createRepository(c.env.DB, c.get("userId"));
   return c.json(await repo.locations.all());
 });
 
@@ -16,7 +16,7 @@ const CreateBody = z.object({
 });
 
 locationsRouter.post("/", async (c) => {
-  const repo = createRepository(c.env.DB);
+  const repo = createRepository(c.env.DB, c.get("userId"));
   const parsed = CreateBody.safeParse(await c.req.json());
   if (!parsed.success) {
     return c.json({ error: "El nombre de la ubicación es obligatorio" }, 400);
@@ -34,7 +34,7 @@ const UpdateBody = z.object({
 });
 
 locationsRouter.put("/:id", async (c) => {
-  const repo = createRepository(c.env.DB);
+  const repo = createRepository(c.env.DB, c.get("userId"));
   const parsed = UpdateBody.safeParse(await c.req.json());
   if (!parsed.success) {
     return c.json({ error: "Datos inválidos" }, 400);
@@ -47,7 +47,7 @@ locationsRouter.put("/:id", async (c) => {
 });
 
 locationsRouter.get("/:id/items", async (c) => {
-  const repo = createRepository(c.env.DB);
+  const repo = createRepository(c.env.DB, c.get("userId"));
   const id = Number(c.req.param("id"));
   const location = await repo.locations.get(id);
   if (!location) {
@@ -57,10 +57,10 @@ locationsRouter.get("/:id/items", async (c) => {
 });
 
 locationsRouter.delete("/:id", async (c) => {
-  const repo = createRepository(c.env.DB);
+  const repo = createRepository(c.env.DB, c.get("userId"));
   const result = await repo.locations.remove(Number(c.req.param("id")));
   if (!result.ok) {
-    return c.json({ error: result.reason }, 409);
+    return c.json({ error: result.reason }, result.status);
   }
   return c.body(null, 204);
 });

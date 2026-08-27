@@ -1,13 +1,13 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import type { Env } from "./types.js";
+import type { Env, Variables } from "./types.js";
 import { verifyToken } from "./auth.js";
 import { authRouter } from "./routes/auth.js";
 import { searchRouter } from "./routes/search.js";
 import { itemsRouter } from "./routes/items.js";
 import { locationsRouter } from "./routes/locations.js";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 app.use(
   "*",
@@ -21,16 +21,19 @@ app.use(
 
 app.get("/api/health", (c) => c.json({ ok: true }));
 
-// Público: sin esto nadie podría iniciar sesión.
+// Público: sin esto nadie podría registrarse ni iniciar sesión.
 app.route("/api/auth", authRouter);
 
-// A partir de aquí, toda /api/* exige un token de sesión válido.
+// A partir de aquí, toda /api/* exige un token de sesión válido, y deja el
+// user_id disponible en el contexto para que cada ruta filtre por él.
 app.use("/api/*", async (c, next) => {
   const authHeader = c.req.header("Authorization");
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
-  if (!(await verifyToken(c.env.AUTH_SECRET, token))) {
+  const verified = await verifyToken(c.env.AUTH_SECRET, token);
+  if (!verified) {
     return c.json({ error: "No autenticado" }, 401);
   }
+  c.set("userId", verified.userId);
   await next();
 });
 
