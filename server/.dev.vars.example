@@ -1,0 +1,18 @@
+# Copia este fichero a .dev.vars (no se versiona) para desarrollo local con
+# `wrangler dev`. En producción se definen como secrets:
+#   wrangler secret put ANTHROPIC_API_KEY
+#   wrangler secret put AUTH_SECRET
+#   wrangler secret put REGISTRATION_CODE
+# (o, si los añades desde el dashboard, en "Runtime variables and secrets"
+# del Worker — no en el panel general de "Variables and Secrets" del build,
+# que no llega al Worker en ejecución)
+
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# Clave con la que se firman los tokens de sesión. Genera una aleatoria,
+# por ejemplo: openssl rand -base64 32
+AUTH_SECRET=cambia-esto-por-una-cadena-aleatoria-larga
+
+# Código de invitación: hay que introducirlo para poder registrarse. Cierra
+# el registro público sin necesidad de gestionar invitaciones por persona.
+REGISTRATION_CODE=cambia-esto-por-un-código-aleatorio
