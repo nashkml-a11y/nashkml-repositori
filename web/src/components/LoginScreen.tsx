@@ -42,8 +42,11 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center px-6">
-      <h1 className="text-center text-2xl font-semibold text-stone-900">MAPA</h1>
-      <p className="mt-2 text-center text-sm text-stone-500">
+      <h1 className="text-center text-2xl font-semibold text-stone-900">M.A.P.A.</h1>
+      <p className="mt-1 text-center text-xs text-stone-400">
+        Memoria Asistida de Posición y Almacenamiento
+      </p>
+      <p className="mt-3 text-center text-sm text-stone-500">
         {mode === "login" ? "Entra con tu cuenta." : "Crea tu cuenta para empezar."}
       </p>
       <form onSubmit={handleSubmit} className="mt-8 flex w-full flex-col gap-3">
