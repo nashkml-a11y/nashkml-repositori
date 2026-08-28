@@ -5,9 +5,12 @@ import { toBase64Url, fromBase64Url, timingSafeEqual } from "./crypto-utils.js";
 // bcryptjs es JS puro y puede acercarse al límite de CPU por petición en
 // Workers; los bindings nativos de bcrypt (@node-rs/bcrypt) no son
 // compatibles con el runtime (sin filesystem, sin módulos nativos); scrypt
-// no forma parte del estándar Web Crypto. 210 000 iteraciones sigue la
-// recomendación de OWASP (2023+) para PBKDF2-HMAC-SHA256.
-const PBKDF2_ITERATIONS = 210_000;
+// no forma parte del estándar Web Crypto. 100 000 iteraciones es el máximo
+// que permite `crypto.subtle.deriveBits` con PBKDF2 en el runtime real de
+// Cloudflare Workers (el límite no existe en `wrangler dev` local, solo en
+// producción, así que no se ve hasta desplegar); sigue siendo un valor
+// sólido para PBKDF2-HMAC-SHA256.
+const PBKDF2_ITERATIONS = 100_000;
 const SALT_BYTES = 16;
 const KEY_LENGTH_BITS = 256;
 
