@@ -18,6 +18,8 @@ const app = {
   mode: null,
   map: null,
   mapView: null,
+  battleMap: null,
+  battleMapView: null,
   state: null,
   countdownTimer: null,
   rivalAI: null,
@@ -25,10 +27,9 @@ const app = {
   rafId: null,
 };
 
-// --- Pantalla de mapa ------------------------------------------------------
+// --- Renderizado del mapa (compartido entre la vista previa y la partida) --
 
-function renderMap(map) {
-  const svg = el("map-svg");
+function paintMapSvg(svg, map) {
   svg.setAttribute("viewBox", `0 0 ${map.width} ${map.height}`);
   svg.innerHTML = "";
   for (const island of map.islands) {
@@ -38,14 +39,26 @@ function renderMap(map) {
     path.dataset.islandId = island.id;
     svg.appendChild(path);
   }
-  if (app.mapView) app.mapView.destroy();
-  app.mapView = new MapView(svg, map.width, map.height);
-  el("map-seed-label").textContent = `Semilla del mapa: ${map.seed}`;
+}
+
+// El HUD ocupará una columna fija de 1/4 del ancho: el mapa no tiene por
+// qué ser cuadrado, se genera directamente con la proporción del hueco
+// libre que le queda (ver mapgen.js: generateMap(seed, aspectRatio)).
+function aspectRatioOf(element) {
+  const rect = element.getBoundingClientRect();
+  if (!rect.width || !rect.height) return 1;
+  return rect.width / rect.height;
 }
 
 function generateAndShowMap() {
-  app.map = generateMap(createMatchSeed());
-  renderMap(app.map);
+  const seed = createMatchSeed();
+  const aspect = aspectRatioOf(el("map-container"));
+  app.map = generateMap(seed, aspect);
+  const svg = el("map-svg");
+  paintMapSvg(svg, app.map);
+  if (app.mapView) app.mapView.destroy();
+  app.mapView = new MapView(svg, app.map.width, app.map.height);
+  el("map-seed-label").textContent = `Semilla del mapa: ${app.map.seed}`;
 }
 
 function showScreen(screenId) {
@@ -59,6 +72,16 @@ function startBattle() {
   app.state = createGameState(app.mode);
   app.rivalAI = createRivalAI();
   showScreen("game-screen");
+
+  // El lienzo se regenera con la misma semilla pero ajustado a la forma
+  // real del hueco que deja el HUD (1/4 del ancho para el HUD, el resto
+  // para el mapa) — así llena exactamente el espacio disponible.
+  const battleAspect = aspectRatioOf(el("battle-map-pane"));
+  app.battleMap = generateMap(app.map.seed, battleAspect);
+  const battleSvg = el("battle-map-svg");
+  paintMapSvg(battleSvg, app.battleMap);
+  if (app.battleMapView) app.battleMapView.destroy();
+  app.battleMapView = new MapView(battleSvg, app.battleMap.width, app.battleMap.height);
 
   if (isThirtyMin(app.state)) {
     app.countdownTimer = new CountdownTimer(
@@ -116,6 +139,8 @@ function gameLoop(now) {
 function stopBattle() {
   if (app.rafId != null) cancelAnimationFrame(app.rafId);
   if (app.countdownTimer) app.countdownTimer.stop();
+  if (app.battleMapView) app.battleMapView.destroy();
+  app.battleMapView = null;
   app.state = null;
   app.countdownTimer = null;
 }

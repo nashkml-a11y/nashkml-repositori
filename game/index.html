@@ -39,15 +39,19 @@
 </div>
 
 <div id="game-screen" class="screen hidden">
-  <header id="hud">
-    <div class="hud-mode" id="hud-mode-label">Modo</div>
-    <div class="hud-timer" id="hud-timer">--:--</div>
-    <button id="btn-restart" class="btn-small">Reiniciar</button>
-  </header>
+  <div id="battle-map-pane">
+    <svg id="battle-map-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
 
-  <div id="result-banner" class="hidden"></div>
+  <aside id="hud-pane">
+    <header id="hud">
+      <div class="hud-mode" id="hud-mode-label">Modo</div>
+      <div class="hud-timer" id="hud-timer">--:--</div>
+      <button id="btn-restart" class="btn-small">Reiniciar</button>
+    </header>
 
-  <main id="battlefield">
+    <div id="result-banner" class="hidden"></div>
+
     <section class="side-panel" id="player-panel">
       <h2>Jugador</h2>
 
@@ -120,12 +124,12 @@
 
       <p class="radar-hint" id="radar-hint">Compra un Radar para ver el estado del rival.</p>
     </section>
-  </main>
 
-  <footer id="log-panel">
-    <h3>Registro</h3>
-    <ul id="log-list"></ul>
-  </footer>
+    <footer id="log-panel">
+      <h3>Registro</h3>
+      <ul id="log-list"></ul>
+    </footer>
+  </aside>
 </div>
 
 <script type="module" src="js/main.js"></script>

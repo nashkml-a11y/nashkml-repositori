@@ -4,8 +4,8 @@
 // separadas sólo por canales de agua estrechos.
 //
 //  - 1 isla FIJA: siempre el mismo tamaño, la misma forma y la misma
-//    posición en cualquier partida (semilla constante). Es donde se coloca
-//    el Generador.
+//    posición relativa en cualquier partida (semilla constante). Es donde
+//    se coloca el Generador.
 //  - 4 islas de CONQUISTA: se generan repartiéndose (a la manera de un
 //    diagrama de Voronoi con fronteras ruidosas, no rectas) TODO el espacio
 //    del mapa que deja libre la isla fija, de forma que entre las 5 islas
@@ -13,22 +13,27 @@
 //    los canales mínimos entre costas y un margen exterior estrecho.
 //  - Dentro de una partida, las 4 islas de conquista son las mismas para
 //    todos los jugadores (se generan a partir de un único "matchSeed").
+//
+// El mapa NO tiene por qué ser cuadrado: generateMap(seed, aspectRatio)
+// genera un lienzo con ese ratio ancho/alto (pensado para llenar el hueco
+// que deje el HUD en pantalla), reescalando sólo el eje más largo — el eje
+// corto siempre mide REF unidades, así que islas, canales y márgenes
+// conservan siempre la misma proporción visual sea cual sea la forma final.
 
+const REF = 1600; // unidad de referencia: el lado corto del mapa siempre mide esto
 const FIXED_ISLAND_SEED = 1337; // semilla constante -> la isla del generador es siempre igual
-const MAP_SIZE = 1600;
-const MAP_CENTER = { x: MAP_SIZE / 2, y: MAP_SIZE / 2 };
 
 const FIXED_ISLAND_RADIUS = 260;
 const FIXED_ISLAND_PERTURB = 0.3;
 
-const GRID_N = 170; // resolución de la rejilla de clasificación (celdas por lado)
+const GRID_CELL_SIZE = REF / 170; // resolución de la rejilla de clasificación
 const WATER_BAND = 20; // ancho aproximado del canal de agua entre costas
 const OUTER_MARGIN_BAND = 22; // banda de agua media en el borde exterior del mapa
 const OUTER_MARGIN_NOISE_AMPLITUDE = 32; // cuánto ondula esa banda: la costa exterior no es una línea recta
 const CONQUEST_PERTURB = 0.55; // fuerza del ruido de frontera de las islas de conquista
 const CHAIKIN_ITERATIONS = 2;
 
-const CONQUEST_PLACEMENT_RADIUS = MAP_SIZE * 0.29;
+const CONQUEST_PLACEMENT_RADIUS = REF * 0.29;
 // Rango de partida bien amplio para que unas islas salgan claramente más
 // grandes que otras; el tamaño mínimo real se garantiza aparte (ver
 // MIN_ISLAND_AREA_FRACTION) ajustando este "bias" isla a isla si hace falta.
@@ -36,7 +41,7 @@ const CONQUEST_BIAS_RANGE = [0.55, 1.6];
 // Ninguna isla de conquista puede quedar por debajo de 1/8 de la superficie
 // total del mapa, aunque el reparto aleatorio sea muy desigual.
 const MIN_ISLAND_AREA_FRACTION = 1 / 8;
-const BIAS_ADJUST_ITERATIONS = 30;
+const BIAS_ADJUST_ITERATIONS = 50;
 const BIAS_SHRINK_FACTOR = 0.88;
 
 function mulberry32(seed) {
@@ -145,15 +150,15 @@ export function polygonArea(points) {
 
 // --- Isla fija (Generador) --------------------------------------------
 
-function buildFixedIsland() {
+function buildFixedIsland(ctx) {
   const rng = mulberry32(FIXED_ISLAND_SEED);
   const harmonics = randomHarmonics(rng, FIXED_ISLAND_PERTURB);
-  const polygon = buildCirclePolygon(MAP_CENTER, FIXED_ISLAND_RADIUS, harmonics);
+  const polygon = buildCirclePolygon(ctx.center, FIXED_ISLAND_RADIUS, harmonics);
   return {
     id: "generatorIsland",
     kind: "fixed",
     role: "generator",
-    center: MAP_CENTER,
+    center: ctx.center,
     baseRadius: FIXED_ISLAND_RADIUS,
     harmonics,
     polygon,
@@ -167,19 +172,25 @@ function fixedIslandRadiusAt(fixedIsland, angle) {
 
 // --- Islas de conquista (Voronoi orgánico sobre el resto del mapa) -----
 
-function buildConquestSeeds(rng) {
+function buildConquestSeeds(rng, ctx) {
   const baseAngles = [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4];
+  // El radio de colocación se estira por eje en la misma proporción que el
+  // propio lienzo: en un mapa muy ancho las semillas también se reparten
+  // más a lo ancho, para no dejar franjas laterales enteras sin reclamar
+  // (lo que forzaría al ajustador de tamaño mínimo a trabajar mucho más).
+  const radiusX = CONQUEST_PLACEMENT_RADIUS * (ctx.mapWidth / REF);
+  const radiusY = CONQUEST_PLACEMENT_RADIUS * (ctx.mapHeight / REF);
   return baseAngles.map((baseAngle, index) => {
     const angle = baseAngle + (rng() - 0.5) * (Math.PI / 6);
-    const radius = CONQUEST_PLACEMENT_RADIUS * (0.85 + rng() * 0.3);
+    const spread = 0.85 + rng() * 0.3;
     const [minBias, maxBias] = CONQUEST_BIAS_RANGE;
     return {
       id: `island${index + 1}`,
       kind: "conquest",
       role: "territory",
       center: {
-        x: MAP_CENTER.x + Math.cos(angle) * radius,
-        y: MAP_CENTER.y + Math.sin(angle) * radius,
+        x: ctx.center.x + Math.cos(angle) * radiusX * spread,
+        y: ctx.center.y + Math.sin(angle) * radiusY * spread,
       },
       bias: minBias + rng() * (maxBias - minBias),
       harmonics: randomHarmonics(rng, CONQUEST_PERTURB),
@@ -201,18 +212,19 @@ function effectiveDistance(seed, x, y) {
 // los del margen exterior del mapa también quedan como agua/reservados. El
 // margen exterior se ondula con ruido 2D: la costa que da al mar abierto no
 // es una línea recta, como el resto de las costas del mapa.
-function classifyGrid(seeds, fixedIsland, edgeNoise) {
-  const cellSize = MAP_SIZE / GRID_N;
-  const N1 = GRID_N + 1;
-  const owner = new Int8Array(N1 * N1).fill(-1);
+function classifyGrid(seeds, fixedIsland, edgeNoise, ctx) {
+  const cellSize = GRID_CELL_SIZE;
+  const gridNX = Math.round(ctx.mapWidth / cellSize) + 1;
+  const gridNY = Math.round(ctx.mapHeight / cellSize) + 1;
+  const owner = new Int8Array(gridNX * gridNY).fill(-1);
 
-  for (let j = 0; j < N1; j++) {
-    for (let i = 0; i < N1; i++) {
+  for (let j = 0; j < gridNY; j++) {
+    for (let i = 0; i < gridNX; i++) {
       const x = i * cellSize;
       const y = j * cellSize;
-      const idx = j * N1 + i;
+      const idx = j * gridNX + i;
 
-      const distToEdge = Math.min(x, y, MAP_SIZE - x, MAP_SIZE - y);
+      const distToEdge = Math.min(x, y, ctx.mapWidth - x, ctx.mapHeight - y);
       const noisyMargin = OUTER_MARGIN_BAND + OUTER_MARGIN_NOISE_AMPLITUDE * edgeNoise(x, y);
       if (distToEdge < Math.max(10, noisyMargin)) {
         continue; // agua: costa exterior (ondulada, no un corte recto)
@@ -243,17 +255,17 @@ function classifyGrid(seeds, fixedIsland, edgeNoise) {
     }
   }
 
-  return { owner, N1, cellSize };
+  return { owner, gridNX, gridNY, cellSize };
 }
 
 // --- Marching squares: extrae el contorno de una máscara binaria -------
 
-function marchingSquaresSegments(owner, N1, cellSize, islandIndex) {
+function marchingSquaresSegments(owner, gridNX, gridNY, cellSize, islandIndex) {
   const segments = [];
-  const val = (i, j) => (owner[j * N1 + i] === islandIndex ? 1 : 0);
+  const val = (i, j) => (owner[j * gridNX + i] === islandIndex ? 1 : 0);
 
-  for (let j = 0; j < N1 - 1; j++) {
-    for (let i = 0; i < N1 - 1; i++) {
+  for (let j = 0; j < gridNY - 1; j++) {
+    for (let i = 0; i < gridNX - 1; i++) {
       const tl = val(i, j);
       const tr = val(i + 1, j);
       const br = val(i + 1, j + 1);
@@ -389,11 +401,11 @@ function computeGridAreas(owner, cellSize, seedCount) {
 // tamaño mínimo exigido (1/8 del mapa). Bajar el bias hace que una isla
 // reclame más celdas vecinas; es un ajuste local, así que unas pocas
 // iteraciones bastan para converger en la práctica.
-function enforceMinimumIslandSize(seeds, fixedIsland, edgeNoise) {
+function enforceMinimumIslandSize(seeds, fixedIsland, edgeNoise, ctx) {
   // Se exige un poco más que el mínimo real: el suavizado de Chaikin que se
   // aplica después recorta ligeramente las esquinas y reduce el área final.
-  const minArea = MAP_SIZE * MAP_SIZE * MIN_ISLAND_AREA_FRACTION * 1.08;
-  let classification = classifyGrid(seeds, fixedIsland, edgeNoise);
+  const minArea = ctx.mapWidth * ctx.mapHeight * MIN_ISLAND_AREA_FRACTION * 1.15;
+  let classification = classifyGrid(seeds, fixedIsland, edgeNoise, ctx);
 
   for (let iter = 0; iter < BIAS_ADJUST_ITERATIONS; iter++) {
     const areas = computeGridAreas(classification.owner, classification.cellSize, seeds.length);
@@ -404,20 +416,20 @@ function enforceMinimumIslandSize(seeds, fixedIsland, edgeNoise) {
     for (const { index } of tooSmall) {
       seeds[index].bias *= BIAS_SHRINK_FACTOR;
     }
-    classification = classifyGrid(seeds, fixedIsland, edgeNoise);
+    classification = classifyGrid(seeds, fixedIsland, edgeNoise, ctx);
   }
 
   return classification;
 }
 
-function buildConquestIslands(matchSeed, fixedIsland) {
+function buildConquestIslands(matchSeed, fixedIsland, ctx) {
   const rng = mulberry32(matchSeed);
-  const seeds = buildConquestSeeds(rng);
+  const seeds = buildConquestSeeds(rng, ctx);
   const edgeNoise = makeNoise2D(rng);
-  const { owner, N1, cellSize } = enforceMinimumIslandSize(seeds, fixedIsland, edgeNoise);
+  const { owner, gridNX, gridNY, cellSize } = enforceMinimumIslandSize(seeds, fixedIsland, edgeNoise, ctx);
 
   return seeds.map((seed, index) => {
-    const segments = marchingSquaresSegments(owner, N1, cellSize, index);
+    const segments = marchingSquaresSegments(owner, gridNX, gridNY, cellSize, index);
     const loops = stitchLoops(segments);
     const mainLoop = loops.reduce(
       (best, loop) => (polygonArea(loop) > polygonArea(best) ? loop : best),
@@ -441,15 +453,25 @@ function buildConquestIslands(matchSeed, fixedIsland) {
  * Genera el mapa completo de una partida: 1 isla fija (generador, siempre
  * idéntica) + 4 islas de conquista orgánicas y aleatorias que se reparten
  * TODO el resto del mapa, separadas sólo por canales estrechos de agua.
+ *
  * @param {number} matchSeed semilla de la partida (misma semilla = mismo mapa)
+ * @param {number} aspectRatio ancho/alto deseado del lienzo (1 = cuadrado).
+ *   El mapa no tiene por qué ser cuadrado: se genera directamente con esta
+ *   proporción (pensada para llenar el hueco libre junto al HUD) en vez de
+ *   generar un cuadrado y recortarlo o deformarlo después.
  */
-export function generateMap(matchSeed) {
-  const fixedIsland = buildFixedIsland();
-  const conquestIslands = buildConquestIslands(matchSeed, fixedIsland);
+export function generateMap(matchSeed, aspectRatio = 1) {
+  const ratio = aspectRatio > 0 ? aspectRatio : 1;
+  const mapWidth = ratio >= 1 ? REF * ratio : REF;
+  const mapHeight = ratio >= 1 ? REF : REF / ratio;
+  const ctx = { mapWidth, mapHeight, center: { x: mapWidth / 2, y: mapHeight / 2 } };
+
+  const fixedIsland = buildFixedIsland(ctx);
+  const conquestIslands = buildConquestIslands(matchSeed, fixedIsland, ctx);
   const islands = [fixedIsland, ...conquestIslands];
 
   const landArea = islands.reduce((sum, island) => sum + polygonArea(island.polygon), 0);
-  const landFraction = landArea / (MAP_SIZE * MAP_SIZE);
+  const landFraction = landArea / (mapWidth * mapHeight);
 
-  return { seed: matchSeed, width: MAP_SIZE, height: MAP_SIZE, islands, landFraction };
+  return { seed: matchSeed, width: mapWidth, height: mapHeight, islands, landFraction };
 }

@@ -161,23 +161,67 @@ html, body {
 }
 
 /* --- Pantalla de partida --------------------------------------------------- */
+/* El mapa es la vista principal (ocupa todo el espacio libre) y el HUD es
+   una columna fija a la derecha que ocupa exactamente 1/4 del ancho. */
+
+#game-screen {
+  flex-direction: row;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#battle-map-pane {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  background: radial-gradient(circle at 50% 50%, var(--ocean), var(--ocean-deep));
+}
+
+#battle-map-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+
+#battle-map-svg.dragging {
+  cursor: grabbing;
+}
+
+#hud-pane {
+  flex: 0 0 25%;
+  max-width: 25%;
+  min-width: 300px;
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+}
 
 #hud {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 10px 20px;
+  gap: 12px;
+  padding: 10px 16px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .hud-mode {
   font-weight: 600;
   color: var(--text-dim);
+  font-size: 0.85rem;
 }
 
 .hud-timer {
-  font-size: 1.6rem;
+  font-size: 1.4rem;
   font-weight: 700;
   margin-left: auto;
   font-variant-numeric: tabular-nums;
@@ -185,8 +229,8 @@ html, body {
 
 #result-banner {
   text-align: center;
-  padding: 14px;
-  font-size: 1.2rem;
+  padding: 12px;
+  font-size: 1rem;
   font-weight: 700;
   background: var(--accent-dark);
 }
@@ -201,22 +245,17 @@ html, body {
   color: #06240f;
 }
 
-#battlefield {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  padding: 16px;
-}
-
 .side-panel {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.side-panel h2 {
+  margin: 0;
+  font-size: 1.05rem;
 }
 
 .side-panel h2 {
@@ -363,8 +402,24 @@ html, body {
 /* --- Responsive ----------------------------------------------------------- */
 
 @media (max-width: 820px) {
-  #battlefield {
-    grid-template-columns: 1fr;
+  #game-screen {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  #battle-map-pane {
+    height: 45vh;
+  }
+
+  #hud-pane {
+    flex: 1 1 auto;
+    max-width: 100%;
+    min-width: 0;
+    height: auto;
+    border-left: none;
+    border-top: 1px solid var(--border);
   }
 
   .hud-timer {

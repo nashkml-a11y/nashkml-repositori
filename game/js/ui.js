@@ -274,7 +274,7 @@ export function renderGame(state) {
   renderLog(state);
 
   const disable = state.isOver;
-  document.querySelectorAll("#battlefield button").forEach((btn) => {
+  document.querySelectorAll("#player-panel button, #rival-panel button").forEach((btn) => {
     if (disable) btn.disabled = true;
   });
 }
