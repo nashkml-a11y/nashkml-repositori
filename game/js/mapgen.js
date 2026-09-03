@@ -22,13 +22,22 @@ const FIXED_ISLAND_RADIUS = 260;
 const FIXED_ISLAND_PERTURB = 0.3;
 
 const GRID_N = 170; // resolución de la rejilla de clasificación (celdas por lado)
-const WATER_BAND = 24; // ancho aproximado del canal de agua entre costas
-const OUTER_MARGIN_BAND = 36; // banda de agua en el borde exterior del mapa
+const WATER_BAND = 20; // ancho aproximado del canal de agua entre costas
+const OUTER_MARGIN_BAND = 22; // banda de agua media en el borde exterior del mapa
+const OUTER_MARGIN_NOISE_AMPLITUDE = 32; // cuánto ondula esa banda: la costa exterior no es una línea recta
 const CONQUEST_PERTURB = 0.55; // fuerza del ruido de frontera de las islas de conquista
 const CHAIKIN_ITERATIONS = 2;
 
 const CONQUEST_PLACEMENT_RADIUS = MAP_SIZE * 0.29;
-const CONQUEST_BIAS_RANGE = [0.85, 1.15];
+// Rango de partida bien amplio para que unas islas salgan claramente más
+// grandes que otras; el tamaño mínimo real se garantiza aparte (ver
+// MIN_ISLAND_AREA_FRACTION) ajustando este "bias" isla a isla si hace falta.
+const CONQUEST_BIAS_RANGE = [0.55, 1.6];
+// Ninguna isla de conquista puede quedar por debajo de 1/8 de la superficie
+// total del mapa, aunque el reparto aleatorio sea muy desigual.
+const MIN_ISLAND_AREA_FRACTION = 1 / 8;
+const BIAS_ADJUST_ITERATIONS = 30;
+const BIAS_SHRINK_FACTOR = 0.88;
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -60,6 +69,28 @@ function randomHarmonics(rng, totalAmplitude) {
   const rawSum = raw.reduce((sum, h) => sum + h.amplitude, 0);
   const scale = totalAmplitude / rawSum;
   return raw.map((h) => ({ ...h, amplitude: h.amplitude * scale }));
+}
+
+// Ruido 2D simple (suma de senos con frecuencias/fases aleatorias, no
+// relacionadas entre sí) usado para ondular la costa exterior del mapa:
+// así el litoral que da al mar abierto tampoco es una línea recta.
+function makeNoise2D(rng, octaves = 4) {
+  const terms = [];
+  for (let i = 0; i < octaves; i++) {
+    const freq = 0.011 * Math.pow(1.9, i);
+    terms.push({
+      freqX: freq * (0.7 + rng() * 0.6),
+      freqY: freq * (0.7 + rng() * 0.6),
+      phase: rng() * Math.PI * 2,
+      amplitude: Math.pow(0.55, i),
+    });
+  }
+  const ampSum = terms.reduce((sum, t) => sum + t.amplitude, 0);
+  return function noise2D(x, y) {
+    let v = 0;
+    for (const t of terms) v += t.amplitude * Math.sin(x * t.freqX + y * t.freqY + t.phase);
+    return v / ampSum; // aprox. en [-1, 1]
+  };
 }
 
 function harmonicFactor(harmonics, angle) {
@@ -136,8 +167,7 @@ function fixedIslandRadiusAt(fixedIsland, angle) {
 
 // --- Islas de conquista (Voronoi orgánico sobre el resto del mapa) -----
 
-function buildConquestSeeds(matchSeed) {
-  const rng = mulberry32(matchSeed);
+function buildConquestSeeds(rng) {
   const baseAngles = [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4];
   return baseAngles.map((baseAngle, index) => {
     const angle = baseAngle + (rng() - 0.5) * (Math.PI / 6);
@@ -168,8 +198,10 @@ function effectiveDistance(seed, x, y) {
 
 // Clasifica cada punto de la rejilla: -1 = agua, 0-3 = índice de isla de
 // conquista más cercana. Los puntos dentro (o muy cerca) de la isla fija y
-// los del margen exterior del mapa también quedan como agua/reservados.
-function classifyGrid(seeds, fixedIsland) {
+// los del margen exterior del mapa también quedan como agua/reservados. El
+// margen exterior se ondula con ruido 2D: la costa que da al mar abierto no
+// es una línea recta, como el resto de las costas del mapa.
+function classifyGrid(seeds, fixedIsland, edgeNoise) {
   const cellSize = MAP_SIZE / GRID_N;
   const N1 = GRID_N + 1;
   const owner = new Int8Array(N1 * N1).fill(-1);
@@ -180,13 +212,10 @@ function classifyGrid(seeds, fixedIsland) {
       const y = j * cellSize;
       const idx = j * N1 + i;
 
-      if (
-        x < OUTER_MARGIN_BAND ||
-        y < OUTER_MARGIN_BAND ||
-        x > MAP_SIZE - OUTER_MARGIN_BAND ||
-        y > MAP_SIZE - OUTER_MARGIN_BAND
-      ) {
-        continue; // agua: margen exterior
+      const distToEdge = Math.min(x, y, MAP_SIZE - x, MAP_SIZE - y);
+      const noisyMargin = OUTER_MARGIN_BAND + OUTER_MARGIN_NOISE_AMPLITUDE * edgeNoise(x, y);
+      if (distToEdge < Math.max(10, noisyMargin)) {
+        continue; // agua: costa exterior (ondulada, no un corte recto)
       }
 
       const dxFixed = x - fixedIsland.center.x;
@@ -343,9 +372,49 @@ function polygonToLinePath(points) {
   return d;
 }
 
+// Cuenta cuántas celdas de la rejilla pertenecen a cada isla y las traduce
+// a área aproximada, para poder comprobar el tamaño mínimo antes de hacer
+// el trazado (caro) de contornos.
+function computeGridAreas(owner, cellSize, seedCount) {
+  const cellArea = cellSize * cellSize;
+  const counts = new Array(seedCount).fill(0);
+  for (let k = 0; k < owner.length; k++) {
+    if (owner[k] >= 0) counts[owner[k]]++;
+  }
+  return counts.map((c) => c * cellArea);
+}
+
+// Ajusta iterativamente el "bias" de cada isla (cuánto territorio reclama
+// en el reparto tipo Voronoi) hasta que ninguna quede por debajo del
+// tamaño mínimo exigido (1/8 del mapa). Bajar el bias hace que una isla
+// reclame más celdas vecinas; es un ajuste local, así que unas pocas
+// iteraciones bastan para converger en la práctica.
+function enforceMinimumIslandSize(seeds, fixedIsland, edgeNoise) {
+  // Se exige un poco más que el mínimo real: el suavizado de Chaikin que se
+  // aplica después recorta ligeramente las esquinas y reduce el área final.
+  const minArea = MAP_SIZE * MAP_SIZE * MIN_ISLAND_AREA_FRACTION * 1.08;
+  let classification = classifyGrid(seeds, fixedIsland, edgeNoise);
+
+  for (let iter = 0; iter < BIAS_ADJUST_ITERATIONS; iter++) {
+    const areas = computeGridAreas(classification.owner, classification.cellSize, seeds.length);
+    const tooSmall = areas
+      .map((area, index) => ({ area, index }))
+      .filter((entry) => entry.area < minArea);
+    if (tooSmall.length === 0) break;
+    for (const { index } of tooSmall) {
+      seeds[index].bias *= BIAS_SHRINK_FACTOR;
+    }
+    classification = classifyGrid(seeds, fixedIsland, edgeNoise);
+  }
+
+  return classification;
+}
+
 function buildConquestIslands(matchSeed, fixedIsland) {
-  const seeds = buildConquestSeeds(matchSeed);
-  const { owner, N1, cellSize } = classifyGrid(seeds, fixedIsland);
+  const rng = mulberry32(matchSeed);
+  const seeds = buildConquestSeeds(rng);
+  const edgeNoise = makeNoise2D(rng);
+  const { owner, N1, cellSize } = enforceMinimumIslandSize(seeds, fixedIsland, edgeNoise);
 
   return seeds.map((seed, index) => {
     const segments = marchingSquaresSegments(owner, N1, cellSize, index);
