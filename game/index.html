@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Guerra de Generadores</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div id="mode-select" class="screen">
+  <h1>Guerra de Generadores</h1>
+  <p class="subtitle">Elige un modo de juego</p>
+  <div class="mode-cards">
+    <button class="mode-card" id="btn-mode-30min" data-mode="thirty_min">
+      <h2>30 minutos</h2>
+      <p>Partida cerrada de 30:00. Economía propia. Sin Rebirth.</p>
+    </button>
+    <button class="mode-card" id="btn-mode-infinite" data-mode="infinite">
+      <h2>Infinito</h2>
+      <p>Sin límite de tiempo. Progresión abierta con Rebirth.</p>
+    </button>
+  </div>
+</div>
+
+<div id="map-screen" class="screen hidden">
+  <header id="map-hud">
+    <h1>Mapa de la partida</h1>
+    <p>Arrastra para mover el mapa. Rueda del ratón para hacer zoom.</p>
+  </header>
+  <div id="map-container">
+    <svg id="map-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+  <footer id="map-controls">
+    <span id="map-seed-label"></span>
+    <button id="btn-regenerate-map" class="btn-small">Generar mapa nuevo</button>
+    <button id="btn-start-battle" class="btn">Comenzar partida</button>
+  </footer>
+</div>
+
+<div id="game-screen" class="screen hidden">
+  <header id="hud">
+    <div class="hud-mode" id="hud-mode-label">Modo</div>
+    <div class="hud-timer" id="hud-timer">--:--</div>
+    <button id="btn-restart" class="btn-small">Reiniciar</button>
+  </header>
+
+  <div id="result-banner" class="hidden"></div>
+
+  <main id="battlefield">
+    <section class="side-panel" id="player-panel">
+      <h2>Jugador</h2>
+
+      <div class="hp-bar-wrap">
+        <div class="hp-bar" id="player-hp-bar"></div>
+        <span class="hp-label" id="player-hp-label">100 / 100</span>
+      </div>
+
+      <div class="stat-row">
+        <span>PX</span>
+        <strong id="player-px">0</strong>
+      </div>
+
+      <div class="card generator-card">
+        <h3><span id="player-generator-title">Generador L1</span></h3>
+        <p>Producción: <strong id="player-generator-production">0 PX/min</strong></p>
+        <p id="player-generator-next">Siguiente mejora: --</p>
+        <button id="player-buy-generator" class="btn">Mejorar generador</button>
+      </div>
+
+      <div class="card dome-card">
+        <h3>Cúpula (nivel <span id="player-dome-level">0</span>)</h3>
+        <p id="player-dome-next">Siguiente mejora: --</p>
+        <button id="player-buy-dome" class="btn">Mejorar cúpula</button>
+      </div>
+
+      <div class="card" id="player-bombs-card">
+        <h3>Bombas</h3>
+        <div id="player-bombs-list" class="item-list"></div>
+      </div>
+
+      <div class="card" id="player-extras-card">
+        <h3>Extras</h3>
+        <div id="player-extras-list" class="item-list"></div>
+      </div>
+
+      <div class="card hidden" id="player-rebirth-card">
+        <h3>Rebirth</h3>
+        <p id="player-rebirth-info"></p>
+        <button id="player-do-rebirth" class="btn btn-danger">Rebirth</button>
+      </div>
+    </section>
+
+    <section class="side-panel" id="rival-panel">
+      <h2>Rival</h2>
+
+      <div class="hp-bar-wrap">
+        <div class="hp-bar hp-bar-rival" id="rival-hp-bar"></div>
+        <span class="hp-label" id="rival-hp-label">100 / 100</span>
+      </div>
+
+      <div class="stat-row">
+        <span>PX</span>
+        <strong id="rival-px">?</strong>
+      </div>
+
+      <div class="card generator-card">
+        <h3><span id="rival-generator-title">Generador L1</span></h3>
+        <p>Producción: <strong id="rival-generator-production">? PX/min</strong></p>
+      </div>
+
+      <div class="card dome-card">
+        <h3>Cúpula (nivel <span id="rival-dome-level">0</span>)</h3>
+      </div>
+
+      <div class="card">
+        <h3>Extras activos</h3>
+        <div id="rival-extras-list" class="item-list"></div>
+      </div>
+
+      <p class="radar-hint" id="radar-hint">Compra un Radar para ver el estado del rival.</p>
+    </section>
+  </main>
+
+  <footer id="log-panel">
+    <h3>Registro</h3>
+    <ul id="log-list"></ul>
+  </footer>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
