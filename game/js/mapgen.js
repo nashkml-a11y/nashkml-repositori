@@ -30,18 +30,26 @@ const GRID_CELL_SIZE = REF / 170; // resolución de la rejilla de clasificación
 const WATER_BAND = 20; // ancho aproximado del canal de agua entre costas
 const OUTER_MARGIN_BAND = 22; // banda de agua media en el borde exterior del mapa
 const OUTER_MARGIN_NOISE_AMPLITUDE = 32; // cuánto ondula esa banda: la costa exterior no es una línea recta
-const CONQUEST_PERTURB = 0.55; // fuerza del ruido de frontera de las islas de conquista
+const CONQUEST_PERTURB_RANGE = [0.4, 0.85]; // fuerza del ruido de costa: varía por isla, no es igual para las 4
 const CHAIKIN_ITERATIONS = 2;
 
 const CONQUEST_PLACEMENT_RADIUS = REF * 0.29;
 // Rango de partida bien amplio para que unas islas salgan claramente más
 // grandes que otras; el tamaño mínimo real se garantiza aparte (ver
 // MIN_ISLAND_AREA_FRACTION) ajustando este "bias" isla a isla si hace falta.
-const CONQUEST_BIAS_RANGE = [0.55, 1.6];
+const CONQUEST_BIAS_RANGE = [0.45, 1.9];
+// Cada isla estira su territorio en una dirección propia y aleatoria: cerca
+// de 1 sale compacta/redondeada, muy por encima de 1 sale alargada, como
+// una península. Así las 4 no son sólo "el mismo blob a otra escala": unas
+// pueden ser compactas y otras claramente alargadas. Un estiramiento tan
+// alto a veces parte una isla en dos lóbulos separados por una vecina de
+// por medio; enforceMinimumIslandSize() tiene una red de seguridad para
+// ese caso (ver más abajo), así que aquí se puede ser bastante generoso.
+const CONQUEST_STRETCH_RANGE = [1, 2.6];
 // Ninguna isla de conquista puede quedar por debajo de 1/8 de la superficie
 // total del mapa, aunque el reparto aleatorio sea muy desigual.
 const MIN_ISLAND_AREA_FRACTION = 1 / 8;
-const BIAS_ADJUST_ITERATIONS = 50;
+const BIAS_ADJUST_ITERATIONS = 25;
 const BIAS_SHRINK_FACTOR = 0.88;
 
 function mulberry32(seed) {
@@ -180,10 +188,12 @@ function buildConquestSeeds(rng, ctx) {
   // (lo que forzaría al ajustador de tamaño mínimo a trabajar mucho más).
   const radiusX = CONQUEST_PLACEMENT_RADIUS * (ctx.mapWidth / REF);
   const radiusY = CONQUEST_PLACEMENT_RADIUS * (ctx.mapHeight / REF);
+  const [minBias, maxBias] = CONQUEST_BIAS_RANGE;
+  const [minStretch, maxStretch] = CONQUEST_STRETCH_RANGE;
+  const [minPerturb, maxPerturb] = CONQUEST_PERTURB_RANGE;
   return baseAngles.map((baseAngle, index) => {
     const angle = baseAngle + (rng() - 0.5) * (Math.PI / 6);
     const spread = 0.85 + rng() * 0.3;
-    const [minBias, maxBias] = CONQUEST_BIAS_RANGE;
     return {
       id: `island${index + 1}`,
       kind: "conquest",
@@ -193,7 +203,12 @@ function buildConquestSeeds(rng, ctx) {
         y: ctx.center.y + Math.sin(angle) * radiusY * spread,
       },
       bias: minBias + rng() * (maxBias - minBias),
-      harmonics: randomHarmonics(rng, CONQUEST_PERTURB),
+      // Dirección y fuerza propias de estiramiento: dan a cada isla una
+      // silueta distinta (compacta, alargada en diagonal, etc.) en vez de
+      // ser todas variaciones redondeadas del mismo patrón.
+      stretchAngle: rng() * Math.PI * 2,
+      stretchRatio: minStretch + rng() * (maxStretch - minStretch),
+      harmonics: randomHarmonics(rng, minPerturb + rng() * (maxPerturb - minPerturb)),
     };
   });
 }
@@ -201,9 +216,19 @@ function buildConquestSeeds(rng, ctx) {
 function effectiveDistance(seed, x, y) {
   const dx = x - seed.center.x;
   const dy = y - seed.center.y;
-  const dist = Math.hypot(dx, dy);
   const angle = Math.atan2(dy, dx);
   const factor = harmonicFactor(seed.harmonics, angle);
+
+  // Se rota al sistema de ejes propio de la isla y se comprime a lo largo de
+  // ese eje (el territorio "alcanza más lejos" en esa dirección) mientras se
+  // expande en el perpendicular: el resultado es una célula de Voronoi
+  // alargada en vez de siempre circular.
+  const cos = Math.cos(-seed.stretchAngle);
+  const sin = Math.sin(-seed.stretchAngle);
+  const alongAxis = dx * cos - dy * sin;
+  const acrossAxis = dx * sin + dy * cos;
+  const dist = Math.hypot(alongAxis / seed.stretchRatio, acrossAxis * seed.stretchRatio);
+
   return (dist / factor) * seed.bias;
 }
 
@@ -384,16 +409,56 @@ function polygonToLinePath(points) {
   return d;
 }
 
-// Cuenta cuántas celdas de la rejilla pertenecen a cada isla y las traduce
-// a área aproximada, para poder comprobar el tamaño mínimo antes de hacer
-// el trazado (caro) de contornos.
-function computeGridAreas(owner, cellSize, seedCount) {
+// Área del MAYOR fragmento conexo de cada isla (relleno por inundación en la
+// rejilla, 4-conectividad). No basta con contar todas las celdas de una
+// isla: si una vecina muy alargada la parte en dos, el trazado final
+// (marching squares) sólo se queda con el lóbulo más grande y descarta el
+// resto, así que hay que medir el tamaño mínimo exactamente igual o el
+// ajustador puede darse por satisfecho con una isla que en el mapa final
+// sale partida y más pequeña de lo que parecía.
+function computeLargestComponentAreas(owner, gridNX, gridNY, cellSize, seedCount) {
   const cellArea = cellSize * cellSize;
-  const counts = new Array(seedCount).fill(0);
-  for (let k = 0; k < owner.length; k++) {
-    if (owner[k] >= 0) counts[owner[k]]++;
+  const visited = new Uint8Array(owner.length);
+  const queue = new Int32Array(owner.length);
+  const maxComponentCells = new Array(seedCount).fill(0);
+
+  for (let start = 0; start < owner.length; start++) {
+    const islandIndex = owner[start];
+    if (islandIndex < 0 || visited[start]) continue;
+
+    let head = 0;
+    let tail = 0;
+    queue[tail++] = start;
+    visited[start] = 1;
+    let count = 0;
+
+    while (head < tail) {
+      const idx = queue[head++];
+      count++;
+      const x = idx % gridNX;
+      const y = (idx - x) / gridNX;
+      if (x > 0 && !visited[idx - 1] && owner[idx - 1] === islandIndex) {
+        visited[idx - 1] = 1;
+        queue[tail++] = idx - 1;
+      }
+      if (x < gridNX - 1 && !visited[idx + 1] && owner[idx + 1] === islandIndex) {
+        visited[idx + 1] = 1;
+        queue[tail++] = idx + 1;
+      }
+      if (y > 0 && !visited[idx - gridNX] && owner[idx - gridNX] === islandIndex) {
+        visited[idx - gridNX] = 1;
+        queue[tail++] = idx - gridNX;
+      }
+      if (y < gridNY - 1 && !visited[idx + gridNX] && owner[idx + gridNX] === islandIndex) {
+        visited[idx + gridNX] = 1;
+        queue[tail++] = idx + gridNX;
+      }
+    }
+
+    if (count > maxComponentCells[islandIndex]) maxComponentCells[islandIndex] = count;
   }
-  return counts.map((c) => c * cellArea);
+
+  return maxComponentCells.map((c) => c * cellArea);
 }
 
 // Ajusta iterativamente el "bias" de cada isla (cuánto territorio reclama
@@ -408,13 +473,28 @@ function enforceMinimumIslandSize(seeds, fixedIsland, edgeNoise, ctx) {
   let classification = classifyGrid(seeds, fixedIsland, edgeNoise, ctx);
 
   for (let iter = 0; iter < BIAS_ADJUST_ITERATIONS; iter++) {
-    const areas = computeGridAreas(classification.owner, classification.cellSize, seeds.length);
+    const areas = computeLargestComponentAreas(
+      classification.owner,
+      classification.gridNX,
+      classification.gridNY,
+      classification.cellSize,
+      seeds.length
+    );
     const tooSmall = areas
       .map((area, index) => ({ area, index }))
       .filter((entry) => entry.area < minArea);
     if (tooSmall.length === 0) break;
-    for (const { index } of tooSmall) {
-      seeds[index].bias *= BIAS_SHRINK_FACTOR;
+    for (const { index, area } of tooSmall) {
+      // Corrección proporcional al déficit: cuanto más lejos está del
+      // mínimo, más fuerte es el ajuste (converge en pocas iteraciones en
+      // vez de acercarse a pasitos fijos que a veces no llegan a tiempo).
+      const correction = Math.sqrt(Math.max(area / minArea, 0.04));
+      seeds[index].bias *= correction * BIAS_SHRINK_FACTOR;
+      // Una isla muy alargada "alcanza lejos" en una sola dirección pero
+      // cubre poca superficie por ello. Si el bias solo no basta, se la
+      // hace también algo más compacta (stretchRatio -> 1) para que la
+      // misma cantidad de territorio reclamado se traduzca en más área.
+      seeds[index].stretchRatio = 1 + (seeds[index].stretchRatio - 1) * correction;
     }
     classification = classifyGrid(seeds, fixedIsland, edgeNoise, ctx);
   }
@@ -422,12 +502,8 @@ function enforceMinimumIslandSize(seeds, fixedIsland, edgeNoise, ctx) {
   return classification;
 }
 
-function buildConquestIslands(matchSeed, fixedIsland, ctx) {
-  const rng = mulberry32(matchSeed);
-  const seeds = buildConquestSeeds(rng, ctx);
-  const edgeNoise = makeNoise2D(rng);
-  const { owner, gridNX, gridNY, cellSize } = enforceMinimumIslandSize(seeds, fixedIsland, edgeNoise, ctx);
-
+function traceIslandPolygons(seeds, classification) {
+  const { owner, gridNX, gridNY, cellSize } = classification;
   return seeds.map((seed, index) => {
     const segments = marchingSquaresSegments(owner, gridNX, gridNY, cellSize, index);
     const loops = stitchLoops(segments);
@@ -447,6 +523,35 @@ function buildConquestIslands(matchSeed, fixedIsland, ctx) {
       path: polygonToLinePath(polygon),
     };
   });
+}
+
+const MAX_GENERATION_ATTEMPTS = 6;
+
+// Un estiramiento anisótropo pronunciado puede, en combinaciones puntuales
+// de mala suerte, dejar a una isla partida en dos lóbulos separados por una
+// vecina de por medio (el ajuste de bias del solver corrige el tamaño, pero
+// no siempre puede deshacer ese "pellizco" topológico). Es un caso raro, así
+// que en vez de perseguirlo con más iteraciones (caro y no siempre
+// converge), simplemente se comprueba el resultado FINAL y, si alguna isla
+// no llega al mínimo real, se reintenta con una variación de la semilla:
+// un reparto distinto de las mismas 4 islas casi nunca falla dos veces.
+function buildConquestIslands(matchSeed, fixedIsland, ctx) {
+  const minArea = ctx.mapWidth * ctx.mapHeight * MIN_ISLAND_AREA_FRACTION;
+
+  for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt++) {
+    const attemptSeed = attempt === 0 ? matchSeed : (matchSeed + attempt * 2654435761) >>> 0;
+    const rng = mulberry32(attemptSeed);
+    const seeds = buildConquestSeeds(rng, ctx);
+    const edgeNoise = makeNoise2D(rng);
+    const classification = enforceMinimumIslandSize(seeds, fixedIsland, edgeNoise, ctx);
+    const islands = traceIslandPolygons(seeds, classification);
+
+    const allAboveMinimum = islands.every((island) => polygonArea(island.polygon) >= minArea);
+    if (allAboveMinimum || attempt === MAX_GENERATION_ATTEMPTS - 1) {
+      return islands;
+    }
+  }
+  return []; // inalcanzable: el bucle siempre retorna en el último intento
 }
 
 /**
