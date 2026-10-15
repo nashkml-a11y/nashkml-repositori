@@ -115,7 +115,8 @@ h3{margin:0 0 4px;font-size:15px}
 .pbar.inv i.full{background:linear-gradient(#ff8a9a 0 40%,#e0304a 40%)}
 
 /* Inicio */
-.hero{padding-top:12px;text-align:center}
+.hero{padding-top:12px;text-align:center;background:linear-gradient(#0000004d,#00000014 30%,#00000014 70%,#0000004d)}
+.hero .lbl,.hero .sub,.hero .power{text-shadow:2px 0 #000,-2px 0 #000,0 2px #000,0 -2px #000}
 .heroTop{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start}
 .heroClicks{text-align:center;padding-left:72px}
 .lbl{font:700 14px "Pixelify Sans",monospace;letter-spacing:1px;color:#fff;text-shadow:2px 2px 0 #000}

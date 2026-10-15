@@ -34,9 +34,8 @@ function petSprite(emoji, variant, scale, cls){
 /* Sprite que cabe en una caja (escala entera cuando es posible) */
 function petFit(emoji, variant, box, cls){
   const a = ASSETS.pets[emoji]; if(!a) return '<span class="emo">'+emoji+'</span>';
-  let k = Math.max(1, Math.floor(box / Math.max(a.w, a.h)));
-  if(Math.max(a.w,a.h)*k < box*0.6) k = box/Math.max(a.w,a.h);
-  return petSprite(emoji, variant, k, cls);
+  const k = Math.min(box / a.w, box / a.h, 4);
+  return petSprite(emoji, variant, Math.round(k*100)/100, cls);
 }
 function eggSprite(w, e, scale, cls){
   const a = ASSETS.eggs[w+"-"+e] || ASSETS.eggs["0-0"];
@@ -187,6 +186,8 @@ function cl2RenderCombo(){
   const cur = Math.max(1, Math.min(5, w.combo||1));
   let pips = "";
   for(let i=1;i<=5;i++) pips += '<i class="'+(i<=cur?"on":"")+(i===5&&cur===5?" max":"")+'"></i>';
+  if(cur===5 && (UI.lastCombo||1)<5){ const c=fxButtonCenter(); if(c){ fxText("¡COMBO x5!", c.x, c.y-c.r-6, { color:"#ff9a3c", big:true, life:1.1 }); fxRing(c.x,c.y,"#ff9a3c",c.r*1.6); } }
+  UI.lastCombo = cur;
   setHTML(m, '<span class="cmLbl">COMBO</span><span class="pips">'+pips+'</span><span class="cmVal'+(cur===5?" max":"")+'">x'+cur+'</span><span class="cmTimer"><b id="comboTimer"></b></span>');
 }
 function cl2RenderCrit(){ /* El original no tiene elemento visible para esto. */ }
@@ -769,7 +770,7 @@ function renderPets(){
     const base = isShinyKey(k) ? shinyBaseKey(k) : (isGoldenKey(k) ? goldenBaseKey(k) : k);
     const e = base.split("|||")[0];
     return '<div class="slot r-'+(pets[e]?pets[e][3]:"common")+'">'+petFit(e, variant, 52)+'<span class="slotM">x'+multiplier(k).toFixed(2)+'</span></div>';
-  }).join("")+'<div class="teamTotal"><span>TOTAL</span><b class="num gold">x'+petMultiplier().toFixed(2)+'</b></div>');
+  }).join("")+'<div class="teamTotal"><span>TOTAL</span><b class="num gold">x'+(petMultiplier()>=1e4?fmt(petMultiplier()):petMultiplier().toFixed(2))+'</b></div>');
 
   const inv = totalPetInventory();
   const cnt = $id("petInvCount"), bar2 = $id("petInvBar");
@@ -806,15 +807,15 @@ function renderPokedex(){
     const ow = petOrigin(emoji);
     const worldChip = '<span class="wchip">'+ico(WORLD_ICON[ow],16)+' '+escHTML(stripEmoji(worlds[ow].name))+'</span>';
     if(seasonLocked){
-      return '<div class="dexCard missing">'+petFit(emoji,"silhouette",72)+'<h3>'+escHTML(p[0])+'</h3>'+
+      return '<div class="dexCard missing">'+petFit(emoji,"silhouette",104)+'<h3>'+escHTML(p[0])+'</h3>'+
         '<span class="chip">'+emojify(petSeason.emoji,14)+' '+petSeason.name+'</span>'+
         '<div class="small warnTxt">'+ico("🔒",14)+' Exclusivo de la actualización de '+petSeason.name+'<br>Disponible durante su mes en el Mundo de '+petSeason.name+'</div></div>';
     }
     if(!discovered){
-      return '<div class="dexCard missing">'+petFit(emoji,"silhouette",72)+'<h3>???</h3><span class="chip">Desconocida</span>'+
+      return '<div class="dexCard missing">'+petFit(emoji,"silhouette",104)+'<h3>???</h3><span class="chip">Desconocida</span>'+
         '<div class="small">'+ico("🔒",14)+' Todavía no descubierta</div>'+worldChip+'</div>';
     }
-    return '<div class="dexCard r-'+p[3]+'">'+petFit(emoji,"",72)+'<h3>'+escHTML(p[0])+'</h3>'+
+    return '<div class="dexCard r-'+p[3]+'">'+petFit(emoji,"",104)+'<h3>'+escHTML(p[0])+'</h3>'+
       '<div class="rname r-'+p[3]+'">'+p[1]+'</div>'+
       '<div class="mult big r-'+p[3]+'">'+ico("⚡",18)+' ×'+fmtMult(p[2])+'</div>'+
       worldChip+
@@ -927,7 +928,25 @@ function renderSettingsExtra(){
 }
 
 /* ---------- navegación ---------- */
+/* Celebraciones visuales: comparan contadores entre renders (no modifican nada) */
+function uiCelebrate(){
+  const snap = { reb:game.rebirths, unl:game.unlocked.length, fus:game.fusions, mis:Object.keys(game.missionsClaimed).length,
+                 ach:Object.keys(game.achievementsClaimed).length, world:game.world };
+  const prev = UI._snap; UI._snap = snap;
+  if(!prev || !UI.ready) return;
+  const cx = FX.w/2, cy = FX.h*0.42;
+  const banner = (txt, col)=>{ fxText(txt, cx, cy, { color:col, big:true, life:1.6, speed:10 }); };
+  if(snap.reb > prev.reb){
+    fxFlash("#ffffff", 0.8); fxShake(5);
+    for(let i=0;i<4;i++) setTimeout(()=>fxRing(cx, cy, ["#ff4d6d","#ffd83c","#42e5ff","#ffffff"][i], 90), i*120);
+    confetti(); banner("¡RENACIMIENTO!", "#ff8aa0");
+  }
+  if(snap.unl > prev.unl){ fxFlash("#ffffff",0.5); confetti(); banner("¡NUEVO MUNDO!", "#7af0ff"); }
+  if(snap.fus > prev.fus){ fxRing(cx, cy, "#ffd83c", 70); fxBurst(cx, cy, { count:30, colors:["#ffd83c","#fff6aa","#ffffff","#ff9cf0"], speed:110, gravity:30, life:1 }); banner("¡FUSIÓN!", "#ffd83c"); }
+  if(snap.mis > prev.mis || snap.ach > prev.ach){ fxBurst(cx, cy, { count:24, colors:["#4cff91","#ffd83c","#ffffff"], speed:90, gravity:60, life:0.9 }); }
+}
 function uiAfterRender(){
+  uiCelebrate();
   document.querySelectorAll(".nav button[data-sec]").forEach(b=>b.classList.toggle("on", b.dataset.sec===currentSection));
   const more = $id("navMore");
   if(more) more.classList.toggle("on", ["stats","pokedex","achievements","upgradeTree","skins","settings"].includes(currentSection));

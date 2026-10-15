@@ -27,7 +27,7 @@ function fxInit(){
   requestAnimationFrame(fxLoop);
 }
 function fxResize(){
-  FX.S = window.innerWidth >= 900 ? 4 : 3;
+  FX.S = 3;
   FX.w = Math.ceil(window.innerWidth / FX.S); FX.h = Math.ceil(window.innerHeight / FX.S);
   FX.cv.width = FX.w; FX.cv.height = FX.h;
   FX.ctx.imageSmoothingEnabled = false;
@@ -59,6 +59,7 @@ function fxBurst(x, y, o){
 
 function fxText(text, x, y, o){
   o = o || {};
+  if(FX.floats.length > 12) FX.floats.splice(0, FX.floats.length - 12);
   FX.floats.push({ text:String(text), x, y, vy:-(o.speed||28), life:0, max:o.life||0.9,
                    c:o.color||"#ffffff", big:!!o.big, wob:(fxRand()*2-1)*6 });
 }
@@ -272,7 +273,7 @@ function fxLoop(now){
     if(f.life >= f.max){ FX.floats.splice(i,1); continue; }
     const k = f.life/f.max;
     const x = f.x + Math.sin(k*3)*f.wob, y = f.y + f.vy*f.life*(1 - k*0.4);
-    const size = f.big ? 16 : 8;
+    const size = 8;
     const segs = f.segs || (f.segs = String(f.text).split(EMOJI_RE).filter(Boolean));
     const blink = (k > 0.75 && ((f.life*20)|0)%2);
     const parts = segs.map(sg => EMOJI_TEST.test(sg)
@@ -280,11 +281,13 @@ function fxLoop(now){
       : { cv: textSprite(sg, size, blink ? "#ffffff" : f.c) });
     let total = 0;
     for(const pt of parts) if(pt) total += pt.cv ? pt.cv.width - 2 : pt.w;
-    let cx = (x - total/2)|0; const cy = (y - (f.life < 0.08 ? 1 : 0))|0;
+    const sc = (f.big && total*2 < FX.w*0.92) ? 2 : 1;
+    let cx = Math.round(Math.max(1, Math.min(FX.w - total*sc - 1, x - total*sc/2)));
+    const cy = (y - (f.life < 0.08 ? 1 : 0))|0;
     for(const pt of parts){
       if(!pt) continue;
-      if(pt.cv){ ctx.drawImage(pt.cv, cx-2, cy - (pt.cv.height/2|0)); cx += pt.cv.width - 2; }
-      else { if(pt.img && pt.img.complete) ctx.drawImage(pt.img, cx, cy - (size/2|0) - 1, size, size); cx += pt.w; }
+      if(pt.cv){ ctx.drawImage(pt.cv, cx-2*sc, cy - (pt.cv.height*sc/2|0), pt.cv.width*sc, pt.cv.height*sc); cx += (pt.cv.width - 2)*sc; }
+      else { if(pt.img && pt.img.complete) ctx.drawImage(pt.img, cx, cy - (size*sc/2|0) - 1, size*sc, size*sc); cx += pt.w*sc; }
     }
   }
   /* Destello */
