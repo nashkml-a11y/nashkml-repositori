@@ -27,7 +27,26 @@ Rediseño visual en pixel art de 16 bits de `referencia/Clicker_Legends_TERMINAD
 | Bestiario con filtro por mundo de origen (mundo donde aparece la mascota por primera vez). | Sigue la maqueta; solo filtra lo que se muestra. |
 | Elementos visuales nuevos que **leen** el estado sin modificarlo: pantalla de título, equipo actual, medidor y temporizador de combo, celebraciones (combo x5, renacer, mundo nuevo, fusión), música por mundo con su propio interruptor (guardado en `CL_ARCADE_MUSIC`, fuera de la partida). | Presentación arcade. |
 
-Se mantienen tal cual, a propósito, los comportamientos discutibles del original: H4 a H14 en `INVENTARIO.md`. Entre ellos: el turbo y los logros no suben el clic real, la Auto-Apertura no desbloquea nada y el panel de requisitos muestra el coste nominal. Los textos originales también se conservan; por ejemplo, «Hay 6 códigos normales».
+### Correcciones de errores del original (a petición del autor)
+
+Están todas en `tools/fixes.py`: sustituciones de texto exactas sobre el original, cada una marcada `[F…]` en el código generado. `tests/fixes.mjs` comprueba cada una (22/22) y `tests/equivalence.mjs` compara la versión arcade con *el original más estas mismas correcciones* (66/66).
+
+| Id | Corrección |
+|---|---|
+| F1 | La racha diaria, las misiones, las recompensas por tiempo y los códigos de clics también suman a **Clics totales** (antes solo al contador del mundo). |
+| F2 | El bonus de **Logros** y el **Turbo x2** se aplican al clic real. Antes solo aparecían en «Cada clic produce». |
+| F3 | La **Auto-Apertura** (80 Tokens) es necesaria para abrir huevos en automático. Antes se cobraba sin efecto y la función era gratis. |
+| F4 | La suerte del **Árbol** (rama huevos) funciona siempre, no solo con Suerte activa. |
+| F5 | El **Huevo gratis** usa la misma suerte que los demás (Suerte x3 y Árbol). |
+| F6 | La **Suerte x2** se acumula. Antes el orbe dorado podía dejar 1 h comprada en 10 min. |
+| F7 | Un **Shiny** de huevo da 1 mascota Shiny. Antes daba además una normal y ocupaba 2 huecos. |
+| F8 | Las mascotas **Doradas o Shiny** cuentan para los requisitos de mundo y para el Bestiario. |
+| F9 | La **racha diaria** usa la fecha local. Antes usaba la UTC y el día cambiaba de madrugada. |
+| F10 | Las recompensas por tiempo de 5 h, 10 h y 25 h muestran los Tokens que dan realmente. |
+| U1 | El panel de requisitos muestra el coste real del siguiente mundo y no propone mundos de temporada. |
+| U3 | El Bestiario cuenta las copias Doradas y Shiny como copias actuales. |
+
+Sin corregir, porque requieren una decisión de diseño: el logro «Mascota de nivel 5» es inalcanzable (ningún sistema sube niveles) y el Auto-Clicker no usa Árbol, Aura, Logros ni Turbo.
 
 ## Origen de los gráficos
 
@@ -58,7 +77,8 @@ dist/           HTML final
 ```bash
 node tools/build.mjs                 # regenera lógica, recursos y dist/
 node tools/build.mjs --skip-assets   # solo código
-node tests/equivalence.mjs           # equivalencia con el original (Playwright + Chromium)
+node tests/equivalence.mjs           # equivalencia con el original + correcciones (Playwright + Chromium)
+node tests/fixes.mjs                 # verificación de cada corrección
 node tests/perf.mjs <dir>            # fps con ~75 clics/s y aura activa
 node tests/sandbox.mjs               # arranque dentro de un iframe aislado sin localStorage
 ```

@@ -790,6 +790,7 @@ function claimMission(id){
     }
 
     W().clicks+=m.reward.clicks||0;
+    game.totalClicks+=m.reward.clicks||0; /* [F1a] */
     game.tokens+=m.reward.tokens||0;
     game.missionsClaimed[id]=true;
 
@@ -823,7 +824,7 @@ function uniquePetCount(){
 function syncPetDiscoveries(){
     if(!game.petsDiscovered) game.petsDiscovered={};
     Object.keys(pets).forEach(emoji=>{
-        let owns=Object.keys(game.pets||{}).some(k=>k.startsWith(emoji+"|||") && (game.pets[k]||0)>0);
+        let owns=Object.keys(game.pets||{}).some(k=>k.startsWith(emoji+"|||") && (game.pets[k]||0)>0) || hasPet(emoji); /* [F8b] */
         if(owns){
             game.petsDiscovered[emoji]=true;
         }
@@ -1279,15 +1280,15 @@ console.log("No se pudo cargar");
 const redeemableCodes={
     "WELCOME":{
         text:"🎁 +5.000 Clics",
-        apply:()=>{ W().clicks+=5000; }
+        apply:()=>{ W().clicks+=5000; game.totalClicks+=5000; /* [F1d] */ }
     },
     "LEAP POWER":{
         text:"⚡ +1.000.000 Clics",
-        apply:()=>{ W().clicks+=1000000; }
+        apply:()=>{ W().clicks+=1000000; game.totalClicks+=1000000; /* [F1e] */ }
     },
     "LUCKY":{
         text:"🍀 +250.000 Clics y +5 Tokens",
-        apply:()=>{ W().clicks+=250000; game.tokens+=5; }
+        apply:()=>{ W().clicks+=250000; game.totalClicks+=250000; /* [F1f] */ game.tokens+=5; }
     },
     "PET LOVER":{
         text:"🐶 +1 Perro",
@@ -1681,6 +1682,10 @@ treeEffectSummary().clickBonus/100;
    pero cada aura aporta un pequeño bonus permanente de clic. */
 const equippedAura=auraById(game.skins&&game.skins.aura);
 amount*=1+(equippedAura.bonus||0)/100;
+
+/* [F2] Bonus permanente de Logros y Turbo de clics x2 */
+amount*=1+(game.achievementBonus||0)/100;
+if(game.clickBoostUntil&&game.clickBoostUntil>Date.now()) amount*=2;
 
 
 /* CRÍTICO
@@ -2210,7 +2215,7 @@ let adLuckyActive=
 game.adLuckUntil && game.adLuckUntil>Date.now();
 
 let luckBonus=treeEffectSummary().eggLuck/100;
-let rr=Math.max(0,r-(luckyActive||adLuckyActive?0.18:0)*luckBonus);
+let rr=Math.max(0,r-0.18*luckBonus); /* [F4a] */
 let i=
 adLuckyActive
 ? (rr<0.15 ? 0 : rr<0.40 ? 1 : rr<0.70 ? 2 : 3)
@@ -2274,7 +2279,10 @@ if(inv >= MAX_PET_INVENTORY){
   return;
 }
 
-game.pets[k]=(game.pets[k]||0)+1;
+/* [F7] */
+if(!shiny) game.pets[k]=(game.pets[k]||0)+1;
+if(!game.petsDiscovered) game.petsDiscovered={};
+game.petsDiscovered[e]=true;
 if(shiny){
   if(!game.shinyPets) game.shinyPets={};
   let sk=shinyKey(e,0);
@@ -2309,7 +2317,7 @@ if(!emoji){
 
 return Object.keys(game.pets).some(k=>{
     return k.startsWith(emoji+"|||") && (game.pets[k]||0)>0;
-});
+}) || /* [F8a] */ [game.goldenPets||{}, game.shinyPets||{}].some(m=>Object.keys(m).some(k=>k.includes("|||"+emoji+"|||") && (m[k]||0)>0));
 
 }
 
@@ -2437,9 +2445,7 @@ function today(){
 
 let d=new Date();
 
-return d
-.toISOString()
-.slice(0,10);
+return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); /* [F9] */
 
 }
 
@@ -2452,9 +2458,7 @@ d.setDate(
     d.getDate()-1
 );
 
-return d
-.toISOString()
-.slice(0,10);
+return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); /* [F9] */
 
 }
 
@@ -2588,6 +2592,7 @@ streakReward();
 
 
 W().clicks+=r.clicks;
+game.totalClicks+=r.clicks; /* [F1b] */
 
 game.tokens+=r.tokens;
 
@@ -2668,6 +2673,7 @@ return;
 if(i<=4){
 
 W().clicks+=r[2];
+game.totalClicks+=r[2]; /* [F1c] */
 
 toast(
 "🎁 +"+
@@ -2855,9 +2861,11 @@ function buyTokenItem(type){
         let list=orderedEggPets(egg);
         let r=Math.random();
         let luckyActive=game.luckUntil && game.luckUntil>Date.now();
-        let i=luckyActive ? (r<0.30?0:r<0.60?1:r<0.85?2:3) : (r<0.55?0:r<0.82?1:r<0.96?2:3);
+        /* [F5] */
+        let adLuckyActive=game.adLuckUntil && game.adLuckUntil>Date.now();
+        let rr=Math.max(0,r-0.18*(treeEffectSummary().eggLuck/100));
+        let i=adLuckyActive ? (rr<0.15?0:rr<0.40?1:rr<0.70?2:3) : luckyActive ? (rr<0.30?0:rr<0.60?1:rr<0.85?2:3) : (rr<0.55?0:rr<0.82?1:rr<0.96?2:3);
         showEgg(list[i]);
-        sfx("egg");
     }
 
     /* FASE 4: Auto-Apertura permanente */
@@ -3058,10 +3066,10 @@ function timeRewardText(i,r){
 return i<=4
 ? fmt(r[2])+" 👆"
 : i===5
-? "🥚 Huevo especial"
+? "✨ +5 Tokens"
 : i===6
-? "🐾 Recompensa especial"
-: "💎 Recompensa divina";
+? "✨ +15 Tokens"
+: "💎 +50 Tokens"; /* [F10] */
 
 }
 
@@ -3375,6 +3383,8 @@ function toggleAutoEggSession(){ /* compat */ }
 function startAutoEggSession(eggIndex){
   if(AUTO_EGG.active || AUTO_EGG.busy) return;
   if(typeof game==="undefined" || typeof W!=="function") return;
+  /* [F3] */
+  if(!game.autoOpenEggs){ toast("🔒 Desbloquea la Auto-Apertura en la Tienda de Tokens (80 ✨)"); return; }
 
   eggIndex = Number(eggIndex);
   const eggs = worlds[game.world] && worlds[game.world].eggs;
@@ -3462,7 +3472,7 @@ function openNextAutoEgg(){
   let luckyActive = game.luckUntil && game.luckUntil > Date.now();
   let adLuckyActive = game.adLuckUntil && game.adLuckUntil > Date.now();
   let luckBonus = (typeof treeEffectSummary==="function") ? treeEffectSummary().eggLuck/100 : 0;
-  let rr = Math.max(0, r - (luckyActive||adLuckyActive?0.18:0)*luckBonus);
+  let rr = Math.max(0, r - 0.18*luckBonus); /* [F4b] */
   let i = adLuckyActive
     ? (rr<0.15?0:rr<0.40?1:rr<0.70?2:3)
     : luckyActive
@@ -3529,7 +3539,7 @@ function tryAutoOpenEgg(){ /* legacy no-op */ }
 
 function cl2ActivateLuck(minutes){
   if(typeof game==="undefined")return;
-  game.luckUntil=Date.now()+(minutes||10)*60000;
+  game.luckUntil=Math.max(game.luckUntil||0,Date.now())+(minutes||10)*60000; /* [F6] */
   if(typeof save==="function")save();
   cl2RenderLuck();
 }

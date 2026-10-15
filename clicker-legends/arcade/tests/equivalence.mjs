@@ -14,7 +14,14 @@ import path from "node:path";
 const require = createRequire("/opt/node-tools/node_modules/");
 const { chromium } = require("playwright");
 
-const ORIG = "file://"+path.resolve("../referencia/Clicker_Legends_TERMINADO.html");
+/* Referencia: el original con las MISMAS correcciones documentadas (tools/fixes.json).
+   Así se demuestra que la única diferencia de lógica son esas correcciones. */
+import fs from "node:fs";
+const FIXES = JSON.parse(fs.readFileSync("tools/fixes.json","utf8"));
+let refHtml = fs.readFileSync("../referencia/Clicker_Legends_TERMINADO.html","utf8");
+for(const f of FIXES) refHtml = refHtml.split(f.old).join(f.new);
+fs.writeFileSync("tests/.ref_fixed.html", refHtml);
+const ORIG = "file://"+path.resolve("tests/.ref_fixed.html");
 const ARC = "file://"+path.resolve("dist/Clicker_Legends_Arcade.html");
 const T0 = Date.now();
 

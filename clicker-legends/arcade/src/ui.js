@@ -255,9 +255,11 @@ function renderWorldRequirements(){
   const box = $id("worldRequirements");
   if(!box||typeof game==="undefined"||typeof worlds==="undefined") return;
   const next = game.world+1;
-  if(next>=worlds.length){ setHTML(box, "<b>"+ico("🏆",18)+" ¡Último mundo desbloqueado!</b>"); return; }
+  /* [U1] Los mundos de temporada no se desbloquean por requisitos: no son «el siguiente mundo» */
+  if(next>=worlds.length || worlds[next].seasonal || worlds[game.world].seasonal){
+    setHTML(box, "<b>"+ico("🏆",18)+" ¡Último mundo desbloqueado!</b>"+(worlds[game.world].seasonal?"":"<div class='small'>Los mundos de temporada se abren gratis durante su mes.</div>")); return; }
   const target = worlds[next];
-  const need = target.unlock;
+  const need = cl3WorldCost(next);   /* [U1] coste real que exige travel(), no el nominal */
   let petText = "No necesaria";
   if(target.petRequired && typeof pets!=="undefined" && pets[target.petRequired]){
     petText = petSprite(target.petRequired,"",0.5,"inl")+" "+pets[target.petRequired][0]+(hasPet(target.petRequired)?" "+ico("✅",16):" "+ico("❌",16));
@@ -571,7 +573,7 @@ function render(){
       '<div class="lineup">'+ordered.map(x=>'<div class="lu r-'+pets[x][3]+'">'+petFit(x,"",40)+'<div class="luN">'+escHTML(pets[x][0])+'</div><div class="luM">x'+pets[x][2]+'</div></div>').join("")+'</div>'+
       '<div class="btnRow"><button class="btn gold" onclick="UI.hatchEgg=['+game.world+','+eggIndex+'];openEgg(worlds['+game.world+'].eggs['+eggIndex+'],'+eggIndex+')">'+ico("🥚",14)+' ABRIR 1 • '+fmt(displayPrice)+' '+ico("👆",14)+'</button>'+
       '<button class="btn green '+(canN>0 && !AUTO_EGG.active ? "" : "disabled")+'" data-auto-egg-index="'+eggIndex+'" onclick="startAutoEggSession('+eggIndex+')" '+(canN<=0 || AUTO_EGG.active ? "disabled" : "")+'>'+
-        ico("🤖",14)+' ABRIR AUTO <span class="autoEggCount">×'+canN+'</span></button></div>'+
+        (game.autoOpenEggs ? ico("🤖",14)+' ABRIR AUTO' : ico("🔒",14)+' AUTO (TIENDA)')+' <span class="autoEggCount">×'+canN+'</span></button></div>'+
     '</div>';
   }).join(""));
 
@@ -798,10 +800,10 @@ function renderPokedex(){
   if(UI.dexFilter>=0) entries = entries.filter(([e])=>petOrigin(e)===UI.dexFilter);
   box.innerHTML = entries.map(([emoji,p])=>{
     const ownedKeys = Object.keys(game.pets||{}).filter(k=>k.startsWith(emoji+"|||") && (game.pets[k]||0)>0);
-    const currentlyOwned = ownedKeys.length>0;
+    const currentlyOwned = ownedKeys.length>0 || hasPet(emoji);   /* [U3] incluye Doradas y Shiny */
     const discovered = !!(game.petsDiscovered && game.petsDiscovered[emoji]) || currentlyOwned;
     const shinyCount = Object.entries(game.shinyPets||{}).filter(([k,v])=>k.includes("|||"+emoji+"|||")&&v>0).reduce((a,[k,v])=>a+v,0);
-    const highestLevel = currentlyOwned ? Math.max(...ownedKeys.map(k=>Number(k.split("|||")[1]||0)+1)) : 0;
+    const highestLevel = ownedKeys.length ? Math.max(...ownedKeys.map(k=>Number(k.split("|||")[1]||0)+1)) : (currentlyOwned ? 1 : 0);
     const petSeason = getPetSeason(emoji);
     const seasonLocked = petSeason && !isSeasonActive(petSeason.id) && !discovered;
     const ow = petOrigin(emoji);

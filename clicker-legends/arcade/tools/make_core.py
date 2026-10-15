@@ -8,7 +8,9 @@ byte a byte igual. También extrae los datos de auras y los códigos extra.
 
 Además escribe tools/core.removed.txt con lo eliminado, para auditoría.
 """
-import os, re, sys
+import os, re, sys, json
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fixes import FIXES, apply_fixes
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, '..', 'referencia', 'Clicker_Legends_TERMINADO.html')
@@ -88,7 +90,8 @@ def block(html, sid):
 
 
 def main():
-    html = open(SRC, encoding='utf-8').read()
+    html = apply_fixes(open(SRC, encoding='utf-8').read())
+    json.dump(FIXES, open(os.path.join(ROOT, 'tools', 'fixes.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     core = main_script(html)
     removed = []
     for name in REMOVE:
