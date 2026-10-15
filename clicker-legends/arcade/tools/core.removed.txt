@@ -1,0 +1,1884 @@
+/* ---- render ---- */
+function render(){
+
+let soundBtn=document.getElementById("soundToggleBtn");
+if(soundBtn){
+    soundBtn.textContent=
+    soundOn() ? "🔊 SONIDO: ACTIVADO" : "🔇 SONIDO: SILENCIADO";
+}
+
+let w=W();
+
+/* Actualizar contadores de la sección Renacimiento */
+const elReb=document.getElementById("rebirths");
+if(elReb) elReb.textContent=game.rebirths;
+const elTok=document.getElementById("tokens");
+if(elTok) elTok.textContent=fmt(game.tokens);
+
+renderStats();
+
+
+/* =====================================================
+   MEJORAS
+===================================================== */
+
+let ic=intensityCost();
+let cc=critCost();
+let fc=comboCost();
+
+document.getElementById("upgrades").innerHTML=`
+
+<div class="item">
+⚡
+<b>Intensidad de Clic — Nivel ${w.intensityLevel}</b>
+<div class="small">Cada mejora aumenta directamente la cantidad de Clics que genera cada clic.</div>
+<button class="buy" onclick="buyIntensity()">MEJORAR • ${fmt(ic)} 👆</button>
+</div>
+
+<div class="item">
+💥
+<b>Crítico</b>
+<div class="small">${
+w.critLevel
+? "Desbloqueado • 5% de probabilidad • x2"
+: "Solo se puede desbloquear. No tiene mejoras."
+}</div>
+<button class="${w.critLevel?"buy disabled":"buy"}" onclick="buyCrit()">
+${
+w.critLevel
+? "✅ CRÍTICO DESBLOQUEADO"
+: "💥 DESBLOQUEAR • "+fmt(cc)+" 👆"
+}
+</button>
+</div>
+
+<div class="item">
+🔥
+<b>Combo</b>
+<div class="small">${
+w.comboUnlocked
+? "Desbloqueado • contador máximo x5"
+: "Solo se puede desbloquear. No tiene mejoras."
+}</div>
+<button class="${w.comboUnlocked?"buy disabled":"buy"}" onclick="buyCombo()">
+${
+w.comboUnlocked
+? "✅ COMBO DESBLOQUEADO"
+: "🔥 DESBLOQUEAR COMBO • "+fmt(fc)+" 👆"
+}
+</button>
+</div>
+
+`;
+/* =====================================================
+   MASCOTAS
+===================================================== */
+
+let ph="";
+
+let normalPetKeys=Object.keys(game.pets).filter(k=>(game.pets[k]||0)>0);
+let shinyPetKeys=Object.keys(game.shinyPets||{}).filter(k=>(game.shinyPets[k]||0)>0);
+const sortPetKeys=(arr, shiny=false)=>arr.sort((a,b)=>{
+    if(game.petSort==="favorite") return Number(petFavorite(b))-Number(petFavorite(a)) || (shiny?shinyMultiplier(b)-shinyMultiplier(a):multiplier(b)-multiplier(a));
+    if(game.petSort==="multDesc") return (shiny?shinyMultiplier(b):multiplier(b))-(shiny?shinyMultiplier(a):multiplier(a));
+    if(game.petSort==="multAsc") return (shiny?shinyMultiplier(a):multiplier(a))-(shiny?shinyMultiplier(b):multiplier(b));
+    if(game.petSort==="levelDesc" || game.petSort==="levelAsc"){
+        let la=Number(a.split("|||").pop()), lb=Number(b.split("|||").pop());
+        return game.petSort==="levelDesc" ? lb-la : la-lb;
+    }
+    if(game.petSort==="rarity") return (shiny?shinyMultiplier(b):multiplier(b))-(shiny?shinyMultiplier(a):multiplier(a));
+    return 0;
+});
+normalPetKeys=sortPetKeys(normalPetKeys,false);
+shinyPetKeys=sortPetKeys(shinyPetKeys,true);
+
+const renderNormalPets=()=>normalPetKeys.map(k=>{
+    let parts=k.split("|||");
+    let e=parts[0];
+    let l=Number(parts[1]);
+    let p=pets[e];
+    if(!p || !game.pets[k]) return "";
+    let multi=multiplier(k);
+    let equippedCount=game.equipped.filter(x=>x===k).length;
+    let owned=game.pets[k];
+    let canEquipMore=equippedCount<owned && game.equipped.length<3;
+    let canUnequip=equippedCount>0;
+
+    return `
+<div class="item pet">
+<div class="peticon">${e}</div>
+<div style="flex:1">
+<b>${p[0]}</b>${l>0?" ✨ Nivel "+(l+1):""}<br>
+<span class="badge ${p[3]}">${p[1]}</span>
+<div class="multiplier ${p[3]}">⚡ x${multi.toFixed(2)}</div>
+<div class="small">
+Cantidad: <b>${owned}</b><br>
+Equipadas: <b>${equippedCount}/${owned}</b><br>
+Cada una multiplica tus Clics por <b>x${multi.toFixed(2)}</b>
+</div>
+<button class="${canEquipMore?"buy":"disabled"}" onclick="equipUnit('${e}',${l})">🐾 EQUIPAR ${owned>1?" ("+equippedCount+"/"+owned+")":""}</button>
+${canUnequip?`<button class="red buy" onclick="unequipUnit('${e}',${l})">❌ QUITAR 1</button>`:""}
+${game.pets[k]>=CL3_BALANCE.fusionNormalRequired?`<button class="green buy" onclick="fuse('${e}',${l})">🌟 FUSIONAR 5 → DORADA</button>`:""}
+<div class="petActionRow">
+<button class="petAction ${petFavorite(k)?"active":""}" onclick="togglePetFavorite('${k}')">${petFavorite(k)?"⭐ FAVORITA":"☆ FAVORITA"}</button>
+<button class="petAction ${petLocked(k)?"active locked":""}" onclick="togglePetLock('${k}')">${petLocked(k)?"🔒 PROTEGIDA":"🔓 PROTEGER"}</button>
+<button class="petAction" onclick="deletePetUnit('${k}')">🗑️ ELIMINAR 1</button>
+</div>
+</div>
+</div>`;
+});
+
+const goldenPetKeys=Object.keys(game.goldenPets||{}).filter(k=>(game.goldenPets[k]||0)>0);
+goldenPetKeys.sort((a,b)=>goldenMultiplier(b)-goldenMultiplier(a));
+const renderGoldenPets=()=>goldenPetKeys.map(gk=>{
+    let base=goldenBaseKey(gk), parts=base.split("|||"), e=parts[0], l=Number(parts[1]||0), p=pets[e];
+    let owned=game.goldenPets[gk]||0;
+    if(!p || !owned) return "";
+    let eq=game.equipped.filter(x=>x===gk).length;
+    let multi=goldenMultiplier(gk);
+    return `<div class="item pet goldenPet">
+<div class="peticon">🌟${e}</div>
+<div style="flex:1">
+<b>${p[0]} <span class="shinyBadge">DORADA</span></b><br>
+<span class="badge ${p[3]}">${p[1]}</span>
+<div class="multiplier ${p[3]}">⚡ x${multi.toFixed(2)}</div>
+<div class="small">Cantidad: <b>${owned}</b> · Equipadas: <b>${eq}/${owned}</b><br>5 Doradas iguales → 1 Shiny</div>
+<button class="${eq<owned&&game.equipped.length<3?"buy":"disabled"}" onclick="equipGoldenUnit('${e}',${l})">🌟 EQUIPAR DORADA</button>
+${eq>0?`<button class="red buy" onclick="unequipGoldenUnit('${e}',${l})">❌ QUITAR 1</button>`:""}
+${owned>=CL3_BALANCE.fusionGoldenRequired?`<button class="green buy" onclick="fuse('${e}',${l})">✨ FUSIONAR 5 → SHINY</button>`:""}
+<div class="petActionRow">
+<button class="petAction ${petFavorite(gk)?"active":""}" onclick="togglePetFavorite('${gk}')">${petFavorite(gk)?"⭐ FAVORITA":"☆ FAVORITA"}</button>
+<button class="petAction ${petLocked(gk)?"active locked":""}" onclick="togglePetLock('${gk}')">${petLocked(gk)?"🔒 PROTEGIDA":"🔓 PROTEGER"}</button>
+<button class="petAction" onclick="deleteGoldenUnit('${gk}')">🗑️ ELIMINAR 1</button>
+</div>
+</div>
+</div>`;
+});
+
+const renderShinyPets=()=>shinyPetKeys.map(sk=>{
+    let owned=game.shinyPets[sk]||0;
+    if(!owned) return "";
+    let base=shinyBaseKey(sk), parts=base.split("|||"), e=parts[0], l=Number(parts[1]||0), p=pets[e];
+    if(!p) return "";
+    let eq=game.equipped.filter(x=>x===sk).length;
+    let multi=shinyMultiplier(sk);
+    return `<div class="item pet shinyPet">
+<div class="peticon">✨${e}</div>
+<div style="flex:1">
+<b>${p[0]} <span class="shinyBadge">SHINY</span></b><br>
+<span class="badge ${p[3]}">${p[1]}</span>
+<div class="multiplier ${p[3]}">⚡ x${multi.toFixed(2)}</div>
+<div class="small">Cantidad: <b>${owned}</b> · Equipadas: <b>${eq}/${owned}</b></div>
+<button class="${eq<owned&&game.equipped.length<3?"buy":"disabled"}" onclick="equipShinyUnit('${e}',${l})">✨ EQUIPAR SHINY</button>
+${eq>0?`<button class="red buy" onclick="unequipShinyUnit('${e}',${l})">❌ QUITAR 1</button>`:""}
+<div class="petActionRow">
+<button class="petAction ${petFavorite(sk)?"active":""}" onclick="togglePetFavorite('${sk}')">${petFavorite(sk)?"⭐ FAVORITA":"☆ FAVORITA"}</button>
+<button class="petAction ${petLocked(sk)?"active locked":""}" onclick="togglePetLock('${sk}')">${petLocked(sk)?"🔒 PROTEGIDA":"🔓 PROTEGER"}</button>
+<button class="petAction" onclick="deleteShinyUnit('${sk}')">🗑️ ELIMINAR 1</button>
+</div>
+</div>
+</div>`;
+});
+
+let normalHtml=renderNormalPets().join("");
+let goldenHtml=renderGoldenPets().join("");
+let shinyHtml=renderShinyPets().join("");
+ph=game.petSort==="shiny" ? shinyHtml+goldenHtml+normalHtml : normalHtml+goldenHtml+shinyHtml;
+let sortSelect=document.getElementById("petSortSelect");
+if(sortSelect) sortSelect.value=game.petSort||"favorite";
+document.getElementById("petList").innerHTML=ph || "<div class='small'>Todavía no tienes mascotas.</div>";
+
+/* FASE 3: indicador de inventario */
+(function(){
+  const inv = totalPetInventory();
+  const cnt = document.getElementById("petInvCount");
+  const bar = document.getElementById("petInvBar");
+  if(cnt) cnt.textContent = inv;
+  if(bar){
+    const pct = Math.min(100, (inv / MAX_PET_INVENTORY) * 100);
+    bar.style.width = pct + "%";
+    bar.style.background = inv >= MAX_PET_INVENTORY
+      ? "linear-gradient(90deg,#ff4d6d,#c94b5d)"
+      : inv >= MAX_PET_INVENTORY * 0.85
+        ? "linear-gradient(90deg,#ffb62e,#ff7922)"
+        : "linear-gradient(90deg,#42e5ff,#a855f7)";
+  }
+})();
+
+
+/* =====================================================
+   HUEVOS
+===================================================== */
+
+/* Botón / estado auto-apertura por sesión */
+if(typeof updateAutoEggButton==="function") updateAutoEggButton();
+
+document.getElementById(
+"eggList"
+).innerHTML=
+
+worlds[game.world].eggs
+.map((e,eggIndex)=>{ const displayPrice=cl3EggCost(game.world,eggIndex,e[1]);
+  const canN = (typeof countAffordableEggs==="function") ? countAffordableEggs(eggIndex) : 0;
+  return `
+
+<div class="item">
+
+<h3>
+${e[0]}
+</h3>
+
+
+<div class="small">
+
+Precio:
+
+<b>
+${fmt(displayPrice)}
+👆
+</b>
+<br>
+Puedes abrir ahora: <b class="worldClicks">${canN}</b>
+
+<br><br>
+
+Mascotas:
+
+<br>
+
+${
+orderedEggPets(e)
+.map(x=>
+x+
+" "+
+pets[x][0]+
+" — x"+
+pets[x][2]
+)
+.join("<br>")
+}
+
+</div>
+
+
+<button
+class="buy"
+onclick='openEgg(${JSON.stringify(e)},${eggIndex})'>
+
+🥚 ABRIR 1
+•
+${fmt(displayPrice)}
+👆
+
+</button>
+
+<button
+class="buy green ${canN>0 && !(typeof AUTO_EGG!=="undefined" && AUTO_EGG.active) ? "" : "disabled"}"
+data-auto-egg-index="${eggIndex}"
+onclick="startAutoEggSession(${eggIndex})"
+${canN<=0 || (typeof AUTO_EGG!=="undefined" && AUTO_EGG.active) ? "disabled" : ""}
+style="margin-top:6px">
+
+🤖 ABRIR AUTO <span class="autoEggCount">×${canN}</span>
+
+</button>
+
+</div>
+
+`; })
+.join("");
+
+
+
+/* =====================================================
+   MUNDOS
+===================================================== */
+
+document.getElementById(
+"worldList"
+).innerHTML=
+
+worlds.map(
+(x,i)=>{
+
+const isSeasonal = !!x.seasonal;
+const seasonData = isSeasonal ? SEASONS[x.seasonId] : null;
+const seasonActive = isSeasonal && isSeasonActive(x.seasonId);
+const isSeasonalLocked = isSeasonal && !seasonActive;
+const clicks = (game.worlds[i] && game.worlds[i].clicks) ? game.worlds[i].clicks : 0;
+const alreadyUnlocked = game.unlocked.includes(i);
+const sEmoji = seasonData ? seasonData.emoji : "🔒";
+const sName = seasonData ? seasonData.name : "Temporada";
+
+return `
+
+<div class="item">
+
+<h3>
+${x.name}
+${isSeasonal ? (seasonActive ? " <span class='badge legendary'>ACTIVO</span>" : " <span class='badge'>🔒 EXCLUSIVO</span>") : ""}
+</h3>
+
+
+<div class="small">
+
+👆 Clics guardados:
+
+<span class="worldClicks">
+
+${fmt(clicks)}
+
+</span>
+
+<br><br>
+
+${
+isSeasonal
+? (seasonActive
+    ? sEmoji+" Mundo temporal de "+sName+". Disponible solo durante su temporada."
+    : "🔒 <b>Exclusivo de la actualización de "+sName+"</b><br>Disponible durante su mes en el Mundo de "+sName+".")
+: (i===0
+    ? "🌳 Mundo inicial."
+    : "🔒 Necesitas "+
+      fmt(cl3WorldCost(i))+
+      " Clics en el mundo anterior"+
+      (x.rebirthsRequired?" • 🔄 "+x.rebirthsRequired+" Renacimientos":"")+
+      (x.petRequired?" • 🐾 "+x.petRequired+" "+(pets[x.petRequired]?pets[x.petRequired][0]:""):"")
+      +"."
+  )
+}
+
+</div>
+
+
+<button
+class="buy ${isSeasonalLocked ? "disabled" : ""}"
+onclick="${isSeasonalLocked ? `toast('${sEmoji} Exclusivo de la actualización de ${sName} — Disponible en su mes')` : `travel(${i})`}">
+
+${
+game.world===i
+? "✅ ESTÁS AQUÍ"
+: (isSeasonalLocked
+    ? "🔒 EXCLUSIVO DE "+sName.toUpperCase()
+    : (seasonActive && !alreadyUnlocked
+        ? sEmoji+" ENTRAR AL MUNDO DE "+sName.toUpperCase()
+        : (alreadyUnlocked ? "🌎 VIAJAR" : "🔒 DESBLOQUEAR")))
+}
+
+</button>
+
+</div>
+
+`;
+}
+).join("");
+
+
+
+/* =====================================================
+   RACHA
+===================================================== */
+
+document.getElementById(
+"streak"
+).textContent=
+game.streak;
+
+
+let d=
+((game.streak-1)%7)+1;
+
+
+document.getElementById(
+"week"
+).innerHTML=
+
+[1,2,3,4,5,6,7]
+.map(x=>`
+
+<div class="
+day
+${x<d?"done":""}
+${x===d?"today":""}
+">
+
+Día ${x}
+
+<br>
+
+${x===7?"💎":"🎁"}
+
+</div>
+
+`)
+.join("");
+
+
+let sr=
+streakReward();
+
+
+document.getElementById(
+"streakBox"
+).innerHTML=`
+
+<div
+class="center"
+style="margin-top:12px">
+
+<b>
+
+${
+sr.weekly
+
+?
+
+"💎 RECOMPENSA ESPECIAL DEL DÍA 7"
+
+:
+
+"🎁 "+
+fmt(sr.clicks)+
+" 👆"
+
+}
+
+</b>
+
+<br>
+
+${
+game.streakClaimed
+
+?
+
+`
+
+<button class="buy disabled">
+✅ RECLAMADA
+</button>
+
+`
+
+:
+
+`
+
+<button
+class="buy claim"
+onclick="claimStreak()">
+
+🔥 RECLAMAR RECOMPENSA
+
+</button>
+
+`
+
+}
+
+</div>
+
+`;
+
+
+
+/* =====================================================
+   RENACIMIENTO
+===================================================== */
+
+document.getElementById(
+"rebirths"
+).textContent=
+game.rebirths;
+
+
+document.getElementById(
+"tokens"
+).textContent=
+game.tokens;
+
+
+document.getElementById("permanent").innerHTML=`
+<div class="item">
+⚡
+Más Clics — Nivel ${game.permanent.clicks}
+<button class="buy" onclick="buyPermanent('clicks')">
+MEJORAR • ${permanentCost("clicks")} ✨
+</button>
+</div>
+`;
+
+/* =====================================================
+   AUTO-CLICKER
+===================================================== */
+
+let autoBox=document.getElementById("autoClickerBox");
+
+if(autoBox){
+
+    let ac=game.autoClicker;
+
+    if(!ac.unlocked){
+
+        autoBox.innerHTML=`
+        <div class="item">
+        🤖 Desbloquéalo para que el juego siga produciendo clics por sí solo.
+        <button class="buy gold" onclick="unlockAutoClicker()">
+        🤖 DESBLOQUEAR • ${AUTO_UNLOCK_COST} ✨
+        </button>
+        </div>
+        `;
+
+    }else{
+
+        let intMaxed=ac.intensityLevel>=AUTO_MAX_LEVEL;
+        let spdMaxed=ac.speedLevel>=AUTO_MAX_LEVEL;
+
+        autoBox.innerHTML=`
+        <div class="item">
+        🤖 Produciendo <b>+${fmt(autoClickAmount())}</b> 👆 cada <b>${(autoClickInterval()/1000).toFixed(1)}s</b>
+        <div class="small" style="margin-top:6px">Probabilidad reducida de 💥 Crítico (~1 %) y 🔥 Combo (~15 %) si los tienes desbloqueados.</div>
+        </div>
+
+        <div class="item">
+        ⚡ Intensidad — Nivel ${ac.intensityLevel}/${AUTO_MAX_LEVEL}
+        <button class="buy ${intMaxed?"disabled":""}" onclick="upgradeAutoIntensity()">
+        ${intMaxed?"✅ MÁXIMO":"MEJORAR • "+autoLevelCost(ac.intensityLevel)+" ✨"}
+        </button>
+        </div>
+
+        <div class="item">
+        🚀 Velocidad — Nivel ${ac.speedLevel}/${AUTO_MAX_LEVEL}
+        <button class="buy ${spdMaxed?"disabled":""}" onclick="upgradeAutoSpeed()">
+        ${spdMaxed?"✅ MÁXIMO":"MEJORAR • "+autoLevelCost(ac.speedLevel)+" ✨"}
+        </button>
+        </div>
+        `;
+
+    }
+
+}
+
+/* =====================================================
+   MISIONES
+===================================================== */
+
+let missionBox=document.getElementById("missionList");
+
+if(missionBox){
+    missionBox.innerHTML=missions.map(m=>{
+        let progress=missionProgress(m);
+        let pct=Math.min(100,progress/m.goal*100);
+        let claimed=!!game.missionsClaimed[m.id];
+        let complete=progress>=m.goal;
+
+        return `
+        <div class="item">
+            <h3>${m.icon} ${m.name}</h3>
+            <div class="small">
+                ${fmt(Math.min(progress,m.goal))} / ${fmt(m.goal)}
+                <br>🎁 Recompensa: <b>${missionRewardText(m.reward)}</b>
+            </div>
+            <div class="progress">
+                <div class="bar" style="width:${pct}%"></div>
+            </div>
+            ${claimed
+                ? `<button class="buy disabled">✅ RECLAMADA</button>`
+                : complete
+                    ? `<button class="buy claim" onclick="claimMission('${m.id}')">🎁 RECLAMAR RECOMPENSA</button>`
+                    : `<button class="buy disabled">🔒 ${Math.floor(pct)}%</button>`
+            }
+        </div>`;
+    }).join("");
+}
+
+
+/* =====================================================
+   ESTADÍSTICAS
+===================================================== */
+
+document.getElementById(
+"statistics"
+).innerHTML=`
+
+🔥 Racha:
+<b>${game.streak}</b>
+
+<br><br>
+
+⏱️ Tiempo jugado:
+<b>${formatTime()}</b>
+
+<br><br>
+
+👆 Clics totales:
+<b>${fmt(game.totalClicks)}</b>
+
+<br><br>
+
+💥 Críticos:
+<b>${game.criticals}</b>
+
+<br><br>
+
+🥚 Huevos abiertos:
+<b>${game.eggs}</b>
+
+<br><br>
+
+✨ Fusiones:
+<b>${game.fusions}</b>
+
+<br><br>
+
+🔥 Mejor combo:
+<b>x${w.bestCombo}</b>
+
+<br><br>
+
+🔄 Renacimientos:
+<b>${game.rebirths}</b>
+
+<br><br>
+
+🐾 Multiplicador de mascotas actual:
+<b>x${petMultiplier().toFixed(2)}</b>
+
+`;
+
+
+
+renderTime();
+syncPetDiscoveries();
+renderPokedex();
+renderAchievements();
+renderTokenShop();
+renderAdShop();
+renderUpgradeTree();
+applyButtonSkin();
+renderSkins();
+try{ renderWorldRequirements(); }catch(e){}
+try{ renderRebirthRequirements(); }catch(e){}
+
+}
+
+/* ---- renderStats ---- */
+function renderStats(){
+
+let w=W();
+
+document.getElementById("clicks").textContent=fmt(w.clicks);
+
+document.getElementById("clicksExact").textContent=
+Math.floor(w.clicks).toLocaleString("es-ES")+" exactos";
+
+document.getElementById("worldName").textContent=worlds[game.world].name;
+
+document.getElementById("intensity").textContent=w.intensity;
+
+document.getElementById("combo").textContent=w.comboUnlocked?("x"+w.combo):"Bloqueado";
+
+document.getElementById("crit").textContent=w.critLevel ? "5%" : "Bloqueado";
+
+document.getElementById("equipped").textContent=game.equipped.length+"/3";
+
+/* HUDs de clics del mundo en Huevos / Mundos / Skins */
+const clicksTxt = fmt(w.clicks);
+["eggClicksHud","worldClicksHud","skinClicksHud"].forEach(id=>{
+  const el=document.getElementById(id);
+  if(el) el.textContent=clicksTxt;
+});
+
+/* PODER DE CLIC */
+
+let power=
+w.intensity*
+w.combo*
+petMultiplier()*
+(
+1+
+game.permanent.clicks*0.10
+)*
+(1+treeEffectSummary().clickBonus/100)*
+(1+(auraById(game.skins&&game.skins.aura).bonus||0)/100)*
+(1+(game.achievementBonus||0)/100)*
+((game.clickBoostUntil&&game.clickBoostUntil>Date.now())?2:1);
+
+document.getElementById("clickPower").textContent=fmt(power);
+
+document.getElementById("clickPowerExact").textContent=
+"("+Math.floor(power).toLocaleString("es-ES")+" exactos)";
+
+}
+
+/* ---- renderPokedex ---- */
+function renderPokedex(){
+    let box=document.getElementById("pokedexList");
+    if(!box) return;
+
+    // Mascotas de temporada
+    function getPetSeason(emoji){
+      for(const key in SEASONS){
+        if(SEASONS[key].pets && SEASONS[key].pets.includes(emoji)) return SEASONS[key];
+      }
+      return null;
+    }
+
+    let entries=Object.entries(pets);
+
+    box.innerHTML=entries.map(([emoji,p])=>{
+        let ownedKeys=Object.keys(game.pets||{}).filter(k=>k.startsWith(emoji+"|||") && (game.pets[k]||0)>0);
+        let currentlyOwned=ownedKeys.length>0;
+        let discovered=!!(game.petsDiscovered && game.petsDiscovered[emoji]) || currentlyOwned;
+        let shinyCount=Object.entries(game.shinyPets||{}).filter(([k,v])=>k.includes("|||"+emoji+"|||")&&v>0).reduce((a,[k,v])=>a+v,0);
+        let highestLevel=currentlyOwned
+            ? Math.max(...ownedKeys.map(k=>Number(k.split("|||")[1]||0)+1))
+            : 0;
+
+        const petSeason = getPetSeason(emoji);
+        const seasonLocked = petSeason && !isSeasonActive(petSeason.id) && !discovered;
+
+        if(seasonLocked){
+          return `
+          <div class="pokedexCard missing">
+            <div class="pokedexPet missing">${emoji}</div>
+            <h3>${p[0]}</h3>
+            <div class="badge">${petSeason.emoji} ${petSeason.name}</div>
+            <div class="small" style="margin-top:8px;color:#ffb84d">
+              🔒 Exclusivo de la actualización de ${petSeason.name}<br>
+              Disponible durante su mes en el Mundo de ${petSeason.name}
+            </div>
+          </div>`;
+        }
+
+        return `
+        <div class="pokedexCard ${discovered?"":"missing"}">
+            <div class="pokedexPet ${discovered?"":"missing"}">${emoji}</div>
+            ${discovered
+                ? `
+                    <h3>${p[0]}</h3>
+                    <div class="badge ${p[3]}">${p[1]}</div>
+                    ${petSeason ? `<div class="small" style="color:#ff9a3c">${petSeason.emoji} ${petSeason.name}</div>` : ""}
+                    <div class="multiplier ${p[3]}">⚡ x${Number(p[2]).toFixed(2)}</div>
+                    <div class="small">Nivel máximo: <b>${highestLevel}</b></div>
+                    <div class="small" style="margin-top:5px">✅ Descubierta ${shinyCount?`· ✨ Shiny x${shinyCount}`:""}${currentlyOwned?"":" · (sin copias actuales)"}</div>
+                  `
+                : `
+                    <h3>???</h3>
+                    <div class="badge">Desconocida</div>
+                    <div class="small" style="margin-top:8px">🔒 Todavía no descubierta</div>
+                  `
+            }
+        </div>`;
+    }).join("");
+}
+
+/* ---- renderAchievements ---- */
+function renderAchievements(){
+    let box=document.getElementById("achievementList");
+    if(!box) return;
+
+    box.innerHTML=achievements.map(a=>{
+        let progress=achievementProgress(a);
+        let pct=Math.min(100,progress/a.goal*100);
+        let claimed=!!game.achievementsClaimed[a.id];
+        let complete=progress>=a.goal;
+
+        return `
+        <div class="item">
+            <h3>${a.icon} ${a.name}</h3>
+            <div class="small">
+                ${fmt(Math.min(progress,a.goal))} / ${fmt(a.goal)}
+                <br><span class="achievementReward">🎁 +${a.reward}% de clics permanente</span>
+            </div>
+            <div class="progress">
+                <div class="bar" style="width:${pct}%"></div>
+            </div>
+            ${
+                claimed
+                ? `<button class="buy disabled">✅ CONSEGUIDO</button>`
+                : complete
+                    ? `<button class="buy claim" onclick="claimAchievement('${a.id}')">🏆 RECLAMAR LOGRO</button>`
+                    : `<button class="buy disabled">🔒 ${Math.floor(pct)}%</button>`
+            }
+        </div>`;
+    }).join("");
+}
+
+/* ---- renderUpgradeTree ---- */
+function renderUpgradeTree(){
+  const box=document.getElementById("upgradeTreeBox");
+  if(!box)return;
+  const eff=treeEffectSummary();
+  const lines=upgradeNodes.filter(n=>n.parent).map(n=>{
+    const a=upgradePos[n.parent],b=upgradePos[n.id];
+    return `<line class="treeLine ${treeHas(n.id)?"active":""}" x1="${a[0]+95}" y1="${a[1]+52}" x2="${b[0]+95}" y2="${b[1]+52}"></line>`;
+  }).join("");
+  const nodes=upgradeNodes.map(n=>{
+    const pos=upgradePos[n.id];
+    const purchased=treeHas(n.id), unlocked=treeUnlocked(n);
+    const root=n.id==="root";
+    return `<div class="treeNode ${purchased?"purchased":""} ${!unlocked&&!purchased?"locked":""} ${n.branch!=="root"?"branch":""}" style="left:${pos[0]}px;top:${pos[1]}px">
+      <h3>${n.name}</h3><div class="treeMini">${n.desc}</div>
+      ${root
+        ? `<div class="treeMini" style="margin-top:8px">Puedes invertir en las tres ramas libremente.</div>`
+        : `<div class="treeCost">🪙 ${cl3UpgradeCost(n)} Tokens</div>
+           <button class="${purchased||!unlocked?"disabled":"buy"}" onclick="buyUpgrade('${n.id}')">
+             ${purchased?"✅ DESBLOQUEADA":!unlocked?"🔒 BLOQUEADA":"🌳 DESBLOQUEAR"}
+           </button>`}
+    </div>`;
+  }).join("");
+  box.innerHTML=`
+  <div class="upgradeTreePanel" id="upgradeTreePanel">
+    <div class="treeToolbar">
+      <b>🪙 Tokens: ${fmt(game.tokens)}</b>
+      <button class="buy treeZoom" onclick="treeZoom(-.15)">−</button>
+      <button class="buy treeZoom" onclick="treeZoom(.15)">+</button>
+      <button class="buy" onclick="treeResetView()">🎯 Centrar</button>
+      <button class="buy" onclick="treeToggleMin()">▣ Minimizar</button>
+    </div>
+    <div class="small" style="margin-bottom:8px">Puedes arrastrar el árbol, hacer zoom con los botones o con la rueda/pellizco. Puedes comprar mejoras en las tres ramas, sin límite.</div>
+    <div class="treeViewport" id="treeViewport">
+      <div class="treeCanvas" id="treeCanvas">
+        <svg class="treeLines" viewBox="0 0 1200 900">${lines}</svg>
+        ${nodes}
+      </div>
+    </div>
+    <div class="item" style="margin-top:10px">
+      <b>📈 Efectos actuales</b>
+      <div class="small">👆 Clics: +${eff.clickBonus}% · 🥚 Suerte: +${eff.eggLuck}% · 🐾 Mascotas: +${eff.petBonus}% · ✨ Shiny: +${eff.shinyBonus}%</div>
+    </div>
+  </div>`;
+  treeResetView();
+}
+
+/* ---- renderAdShop ---- */
+function renderAdShop(){
+    let box=document.getElementById("adShop");
+    if(!box) return;
+
+    let luckLeft=Math.max(0,(game.adLuckUntil||0)-Date.now());
+    let speedLeft=Math.max(0,(game.adSpeedUntil||0)-Date.now());
+
+    function timer(ms){
+        if(ms<=0) return "";
+        let s=Math.ceil(ms/1000),m=Math.floor(s/60),sec=s%60;
+        return `<div class="small tokenTimer">Activo: ${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}</div>`;
+    }
+
+    box.innerHTML=`
+    <div class="item">
+        🍀 <b>Suerte x3 — 10 minutos</b>
+        ${timer(luckLeft)}
+        <div class="small">La mejor suerte del juego al abrir huevos, gratis.</div>
+        <button class="buy gold" onclick="watchAdForLuck()">📺 VER ANUNCIO</button>
+    </div>
+    <div class="item">
+        ⚡ <b>Auto-Clicker x2 — 5 minutos</b>
+        ${timer(speedLeft)}
+        <div class="small">${game.autoClicker.unlocked?"Duplica la velocidad del Auto-Clicker.":"Desbloquea el Auto-Clicker primero."}</div>
+        <button class="${game.autoClicker.unlocked?"buy":"buy disabled"}" onclick="watchAdForSpeed()">📺 VER ANUNCIO</button>
+    </div>
+    `;
+}
+
+/* ---- renderTokenShop ---- */
+function renderTokenShop(){
+    let box=document.getElementById("tokenShop");
+    if(!box) return;
+
+    let luckLeft=Math.max(0,(game.luckUntil||0)-Date.now());
+    let boostLeft=Math.max(0,(game.clickBoostUntil||0)-Date.now());
+
+    function timer(ms){
+        if(ms<=0) return "";
+        let s=Math.ceil(ms/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+        return `<div class="small tokenTimer">Activo: ${h>0?h+"h ":""}${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}</div>`;
+    }
+
+    const tokenBalance=game.tokens||0;
+    const canLuck=tokenBalance>=20;
+    const canBoost=tokenBalance>=15;
+    const canEgg=tokenBalance>=30;
+    const canAutoOpen=tokenBalance>=80 && !game.autoOpenEggs;
+
+    box.innerHTML=`
+    <div class="item" style="grid-column:1/-1;text-align:center">
+        🪙 <b>Tokens disponibles: ${fmt(tokenBalance)}</b>
+    </div>
+    <div class="item">
+        🍀 <b>Suerte x2 — 1 hora</b>
+        ${timer(luckLeft)}
+        <div class="small">Duplica la suerte al abrir huevos.</div>
+        <button class="${canLuck?"buy gold":"buy disabled"}" onclick="${canLuck?"buyTokenItem('luckHour')":"toast('❌ No tienes suficientes Tokens')"}">COMPRAR • 20 ✨</button>
+    </div>
+    <div class="item">
+        ⚡ <b>Turbo de clics x2 — 15 min</b>
+        ${timer(boostLeft)}
+        <div class="small">Duplica los clics que generas durante 15 minutos.</div>
+        <button class="${canBoost?"buy":"buy disabled"}" onclick="${canBoost?"buyTokenItem('clickBoost')":"toast('❌ No tienes suficientes Tokens')"}">COMPRAR • 15 ✨</button>
+    </div>
+    <div class="item">
+        🥚 <b>Huevo gratis del mundo actual</b>
+        <div class="small">Abre un huevo aleatorio sin gastar Clics.</div>
+        <button class="${canEgg?"buy":"buy disabled"}" onclick="${canEgg?"buyTokenItem('freeEgg')":"toast('❌ No tienes suficientes Tokens')"}">COMPRAR • 30 ✨</button>
+    </div>
+    <div class="item">
+        🥚🤖 <b>Auto-Apertura (bonus)</b>
+        <div class="small">Marca la función como desbloqueada en tu partida. El control real está en la pestaña <b>Huevos</b> (botón Abrir automáticamente + resumen).</div>
+        <button class="${game.autoOpenEggs?"buy disabled":(canAutoOpen?"buy gold":"buy disabled")}" onclick="${game.autoOpenEggs?"toast('✅ Ya desbloqueada')":(canAutoOpen?"buyTokenItem('autoOpen')":"toast('❌ Necesitas 80 Tokens')")}">
+          ${game.autoOpenEggs?"✅ DESBLOQUEADA":"DESBLOQUEAR • 80 ✨"}
+        </button>
+    </div>
+    `;
+}
+
+/* ---- renderSkins ---- */
+function renderSkins(){
+
+    let balance=document.getElementById("skinClicksBalance");
+    if(balance) balance.textContent=fmt(W().clicks);
+
+    let btnBox=document.getElementById("buttonSkinGrid");
+    if(btnBox){
+        btnBox.innerHTML=BUTTON_SKINS.map(s=>skinCardHTML("button",s)).join("");
+    }
+
+    let fxBox=document.getElementById("clickEffectGrid");
+    if(fxBox){
+        fxBox.innerHTML=CLICK_EFFECTS.map(e=>skinCardHTML("effect",e)).join("");
+    }
+
+}
+
+/* ---- skinCardHTML ---- */
+function skinCardHTML(kind,item){
+
+    let ownedKey = kind==="button" ? "ownedButtons" : "ownedEffects";
+    let owned=game.skins[ownedKey].includes(item.id);
+    let equipped=game.skins[kind]===item.id;
+
+    let action = equipped
+        ? `<button class="buy disabled" style="width:100%">⭐ EQUIPADA</button>`
+        : owned
+            ? `<button class="buy green" style="width:100%" onclick="equipSkin('${kind}','${item.id}')">✅ EQUIPAR</button>`
+            : `<button class="buy" style="width:100%" onclick="buySkin('${kind}','${item.id}')">🔒 ${item.price===0?"GRATIS":fmt(item.price)+" 👆"}</button>`;
+
+    return `
+    <div class="skinCard ${equipped?"equipped":""}">
+        <div class="skinIcon">${item.emoji}</div>
+        <b>${item.name}</b>
+        ${action}
+    </div>
+    `;
+
+}
+
+/* ---- applyButtonSkin ---- */
+function applyButtonSkin(){
+
+    let btn=document.getElementById("click");
+    if(!btn) return;
+
+    let skin=buttonSkinById(game.skins.button);
+
+    btn.style.setProperty("--skinGrad",skin.grad);
+    btn.style.setProperty("--skinShadow1",skin.s1);
+    btn.style.setProperty("--skinShadow2",skin.s2);
+
+    let icon=document.getElementById("clickIcon");
+    if(icon) icon.textContent=skin.emoji;
+
+}
+
+/* ---- renderTime ---- */
+function renderTime(){
+
+let x=
+document.getElementById("time");
+
+
+if(x){
+
+x.textContent=
+formatTime();
+
+}
+
+
+let box=
+document.getElementById(
+"timeRewards"
+);
+
+
+if(!box){
+    return;
+}
+
+
+let items=
+box.querySelectorAll(".item");
+
+
+/* Primera construcción, o cambió el número de recompensas:
+   reconstruimos todo desde cero */
+if(items.length!==timeRewards.length){
+
+box.innerHTML=
+timeRewards
+.map((r,i)=>timeRewardItemHTML(i,r))
+.join("");
+
+return;
+
+}
+
+
+/* Ya existen las tarjetas: actualizamos SOLO lo que cambia
+   (ancho de la barra, texto del botón) sin recrear los nodos,
+   para que la animación de la barra no se reinicie cada segundo */
+timeRewards.forEach((r,i)=>{
+
+let itemEl=items[i];
+
+let progress=
+Math.min(100,game.playSeconds/r[0]*100);
+
+let bar=
+itemEl.querySelector(".bar");
+
+if(bar){
+    bar.style.width=progress+"%";
+}
+
+let claimed=
+game.timeClaimed[i];
+
+let unlocked=
+game.playSeconds>=r[0];
+
+let state=
+claimed?"claimed":(unlocked?"claimable":"locked");
+
+let btn=
+itemEl.querySelector("button");
+
+if(itemEl.dataset.state!==state){
+
+    /* Cambio real de estado (se desbloqueó o se reclamó):
+       sustituimos solo el botón de esta tarjeta */
+    if(btn){
+        btn.outerHTML=
+        timeRewardButtonHTML(i,r,claimed,unlocked,progress);
+    }
+
+    itemEl.dataset.state=state;
+
+}else if(state==="locked" && btn){
+
+    /* Solo cambia el porcentaje: actualizamos el texto
+       sin recrear el botón */
+    btn.textContent=
+    "🔒 "+Math.floor(progress)+"%";
+
+}
+
+});
+
+}
+
+/* ---- timeRewardButtonHTML ---- */
+function timeRewardButtonHTML(i,r,claimed,unlocked,progress){
+
+if(claimed){
+    return `<button class="buy disabled">✅ RECLAMADA</button>`;
+}
+
+if(unlocked){
+    return `<button class="buy claim" onclick="claimTime(${i})">🎁 RECLAMAR</button>`;
+}
+
+return `<button class="buy disabled">🔒 ${Math.floor(progress)}%</button>`;
+
+}
+
+/* ---- timeRewardItemHTML ---- */
+function timeRewardItemHTML(i,r){
+
+let progress=
+Math.min(100,game.playSeconds/r[0]*100);
+
+let claimed=
+game.timeClaimed[i];
+
+let unlocked=
+game.playSeconds>=r[0];
+
+let state=
+claimed?"claimed":(unlocked?"claimable":"locked");
+
+return`
+
+<div class="item" data-state="${state}">
+
+<b>
+⏱️ ${r[1]}
+</b>
+
+<div class="small">
+🎁 ${timeRewardText(i,r)}
+</div>
+
+<div class="progress">
+
+<div
+class="bar"
+style="width:${progress}%">
+</div>
+
+</div>
+
+${timeRewardButtonHTML(i,r,claimed,unlocked,progress)}
+
+</div>
+
+`;
+
+}
+
+/* ---- renderWorldRequirements ---- */
+function renderWorldRequirements(){
+ const box=document.getElementById("worldRequirements");
+ if(!box||typeof game==="undefined"||typeof worlds==="undefined")return;
+ const next=game.world+1;
+ if(next>=worlds.length){
+  box.innerHTML="<b>🏆 ¡Último mundo desbloqueado!</b>";
+  return;
+ }
+ /* Usamos los mismos datos que comprueba travel() al desbloquear,
+    para que esto nunca pueda desincronizarse del requisito real */
+ const target=worlds[next];
+ const need=target.unlock;
+
+ let petText="No necesaria";
+ if(target.petRequired && typeof pets!=="undefined" && pets[target.petRequired]){
+  petText=target.petRequired+" "+pets[target.petRequired][0]+
+  (hasPet(target.petRequired)?" ✅":" ❌");
+ }
+
+ box.innerHTML=
+ "👆 Clics necesarios en <b>"+worlds[game.world].name+"</b>: <b>"+fmt(need)+"</b>"+
+ "<br>🔄 Renacimientos: <b>"+(target.rebirthsRequired||0)+"</b>"+
+ "<br>🐾 Mascota: <b>"+petText+"</b>";
+}
+
+/* ---- renderRebirthRequirements ---- */
+function renderRebirthRequirements(){
+ const box=document.getElementById("rebirthRequirementsText");
+ if(!box||typeof game==="undefined"||typeof W!=="function")return;
+ const need=(typeof rebirthCost==="function")?rebirthCost():0;
+ const reward=(typeof rebirthTokenReward==="function")?rebirthTokenReward():5;
+ const have = W().clicks;
+ const ready = have >= need;
+ box.innerHTML=
+  "👆 Clics necesarios: <b>"+fmt(need)+"</b> "+
+  (ready?"✅":"(" + fmt(have) + " / " + fmt(need) + ")")+
+  "<br>✨ Tokens que recibirás: <b>+"+reward+"</b>"+
+  "<br><span style='opacity:.85'>El Renacimiento es la única forma de conseguir Tokens. Conservas mascotas, mundos y mejoras permanentes.</span>";
+}
+
+/* ---- cl2RenderCombo ---- */
+function cl2RenderCombo(){
+  const t=document.getElementById("cl2ComboTitle"), p=document.getElementById("cl2ComboText"), b=document.getElementById("cl2ComboBar");
+  if(!t||!p||!b||typeof W!=="function")return;
+  const w=W();
+  if(!w.comboUnlocked){
+    t.textContent="🔥 Combo bloqueado";
+    p.textContent="Solo se puede desbloquear. Máximo x5.";
+    b.style.width="0%";
+    return;
+  }
+  const cur=Math.max(1,Math.min(5,w.combo||1));
+  t.textContent="🔥 Combo x"+cur;
+  p.textContent=cur+" / 5";
+  b.style.width=(cur/5*100)+"%";
+}
+
+/* ---- cl2RenderCrit ---- */
+function cl2RenderCrit(){
+ const e=document.getElementById("cl2CritStatus");
+ if(!e||typeof W!=="function")return;
+ e.textContent=(W().critLevel||0)>0 ? "💥 Crítico desbloqueado — sin mejoras" : "💥 Crítico bloqueado — solo se puede desbloquear";
+}
+
+/* ---- cl2RenderLuck ---- */
+function cl2RenderLuck(){
+  const e=document.getElementById("cl2LuckStatus");
+  if(!e||typeof game==="undefined")return;
+  const leftTok=Math.max(0,(game.luckUntil||0)-Date.now());
+  const leftAd=Math.max(0,(game.adLuckUntil||0)-Date.now());
+  const left=Math.max(leftTok,leftAd);
+  if(left<=0){
+    e.textContent="🍀 Suerte: inactiva";
+    return;
+  }
+  const s=Math.ceil(left/1000),m=Math.floor(s/60),sec=s%60;
+  const label = leftAd>leftTok ? "x3" : "x2";
+  e.textContent="🍀 Suerte "+label+": "+m+":"+String(sec).padStart(2,"0");
+}
+
+/* ---- updateAutoEggButton ---- */
+function updateAutoEggButton(){
+  const cancel = document.getElementById("autoEggCancelBtn");
+  const st = document.getElementById("autoOpenStatus");
+  if(cancel){
+    if(AUTO_EGG.active){
+      cancel.classList.remove("hidden");
+      cancel.style.display = "block";
+    }else{
+      cancel.classList.add("hidden");
+      cancel.style.display = "none";
+    }
+  }
+  if(st){
+    if(AUTO_EGG.active){
+      const eggs = worlds[game.world] && worlds[game.world].eggs;
+      const name = (eggs && eggs[AUTO_EGG.eggIndex]) ? eggs[AUTO_EGG.eggIndex][0] : "Huevo";
+      st.innerHTML = "🤖 Abriendo <b>"+name+"</b>… "+AUTO_EGG.opened+" abiertos · "+fmt(AUTO_EGG.spent)+" 👆 gastados";
+    }else{
+      st.innerHTML = "En cada huevo: <b>Abrir ×N</b> abre varios seguidos con animación. Puedes cancelar y ver el resumen.";
+    }
+  }
+  /* Actualizar contadores ×N en botones si existen */
+  document.querySelectorAll("[data-auto-egg-index]").forEach(btn=>{
+    const idx = Number(btn.getAttribute("data-auto-egg-index"));
+    const n = countAffordableEggs(idx);
+    const label = btn.querySelector(".autoEggCount");
+    if(label) label.textContent = n > 0 ? ("×"+n) : "×0";
+    btn.disabled = AUTO_EGG.active || n <= 0;
+    if(AUTO_EGG.active){
+      btn.classList.add("disabled");
+    }else if(n > 0){
+      btn.classList.remove("disabled");
+    }else{
+      btn.classList.add("disabled");
+    }
+  });
+}
+
+/* ---- showAutoEggSummary ---- */
+function showAutoEggSummary(){
+  const overlay = document.getElementById("autoEggSummaryOverlay");
+  const title = document.getElementById("autoEggSummaryTitle");
+  const meta = document.getElementById("autoEggSummaryMeta");
+  const grid = document.getElementById("autoEggSummaryGrid");
+  if(!overlay || !grid) return;
+
+  if(AUTO_EGG.opened <= 0){
+    overlay.classList.add("hidden");
+    overlay.style.display = "none";
+    return;
+  }
+
+  const reasonText = {
+    cancel: "Cancelaste la apertura",
+    noclicks: "Se acabaron los clics",
+    inventory: "Inventario lleno",
+    error: "Se detuvo",
+    stop: "Apertura finalizada"
+  }[AUTO_EGG.stopReason] || "Apertura finalizada";
+
+  if(title) title.textContent = "🥚 "+AUTO_EGG.opened+" huevos abiertos";
+  if(meta){
+    meta.innerHTML = reasonText+" · Gastados <b>"+fmt(AUTO_EGG.spent)+"</b> 👆"
+      + "<br>✨ Shinys: <b>"+AUTO_EGG.results.filter(r=>r.shiny).length+"</b>";
+  }
+
+  const groups = {};
+  AUTO_EGG.results.forEach(r=>{
+    const gk = (r.shiny?"✨":"")+r.emoji;
+    if(!groups[gk]){
+      groups[gk] = {emoji:r.emoji, name:r.name, rarity:r.rarity, shiny:r.shiny, count:0, mult:r.mult};
+    }
+    groups[gk].count++;
+  });
+
+  grid.innerHTML = Object.values(groups).map(g=>`
+    <div class="item center" style="margin:0;padding:10px 6px">
+      <div style="font-size:36px;line-height:1">${g.emoji}</div>
+      <div class="small ${g.rarity}" style="margin-top:4px;opacity:1;font-weight:700">${g.name}</div>
+      ${g.shiny?'<div class="small" style="color:#ffd83c;opacity:1">✨ Shiny</div>':''}
+      <div style="font-weight:900;margin-top:4px">×${g.count}</div>
+      <div class="small">⚡ x${Number(g.mult).toFixed(2)}</div>
+    </div>
+  `).join("");
+
+  overlay.classList.remove("hidden");
+  overlay.style.display = "flex";
+}
+
+/* ---- float ---- */
+function float(text,variant="normal"){
+    const x=cl1Acquire("float","floatIndex");
+    if(!x) return;
+
+    x.className="float cl2-float-"+(variant||"normal");
+    x.textContent=text;
+    x.style.left=(35+Math.random()*30)+"%";
+    x.style.top="45%";
+    x.style.display="block";
+    x.style.animation="none";
+    x.style.setProperty("--floatCurve",((Math.random()*14)-7)+"px");
+
+    requestAnimationFrame(()=>{
+        if(!x.hasAttribute("data-pool-active")) return;
+        cl1RestartAnimation(x,"cl2FloatUpCurve .8s cubic-bezier(.2,.8,.2,1) forwards");
+    });
+
+    clearTimeout(x._poolTimer);
+    x._poolTimer=setTimeout(()=>cl1Release(x),800);
+}
+
+/* ---- particles ---- */
+function particles(colors){
+    const btn=document.getElementById("click");
+    if(!btn || !CL1_POOL.particle.length) return;
+
+    const count=4;
+    const fx=(typeof game!=="undefined" && game.skins)
+        ? effectById(game.skins.effect)
+        : null;
+    const emojiSet=fx && fx.particles ? fx.particles : null;
+
+    for(let i=0;i<count;i++){
+        const p=cl1Acquire("particle","particleIndex");
+        if(!p) continue;
+
+        p.className="particle";
+        p.style.position="absolute";
+        p.style.left="50%";
+        p.style.top="50%";
+        p.style.display="block";
+        p.style.animation="none";
+        p.style.transform="translate(0,0) scale(1)";
+
+        if(emojiSet){
+            p.textContent=emojiSet[Math.floor(Math.random()*emojiSet.length)];
+            p.style.fontSize=(14+Math.random()*10)+"px";
+            p.style.lineHeight="1";
+            p.style.marginLeft="-10px";
+            p.style.marginTop="-10px";
+            p.style.width="";
+            p.style.height="";
+            p.style.background="";
+        }else{
+            const size=4+Math.random()*5;
+            p.textContent="";
+            p.style.fontSize="";
+            p.style.lineHeight="";
+            p.style.width=size+"px";
+            p.style.height=size+"px";
+            p.style.marginLeft=(-size/2)+"px";
+            p.style.marginTop=(-size/2)+"px";
+            p.style.background=colors[Math.floor(Math.random()*colors.length)];
+        }
+
+        const angle=(Math.PI*2/count)*i+Math.random()*0.5;
+        const dist=60+Math.random()*50;
+        p.style.setProperty("--pfly","translate("+(Math.cos(angle)*dist)+"px,"+(Math.sin(angle)*dist)+"px)");
+
+        clearTimeout(p._poolTimer);
+        requestAnimationFrame(()=>{
+            if(!p.hasAttribute("data-pool-active")) return;
+            cl1RestartAnimation(p,"particleFly .7s ease-out forwards");
+        });
+        p._poolTimer=setTimeout(()=>cl1Release(p),700);
+    }
+}
+
+/* ---- confetti ---- */
+function confetti(){
+
+let colors=
+["#ffd83c","#ff5bd0","#42e5ff","#a855f7","#4cff91","#ff7920"];
+
+let count=28;
+
+for(let i=0;i<count;i++){
+
+let c=document.createElement("div");
+
+c.className="confetti";
+
+let w=6+Math.random()*6;
+
+c.style.width=w+"px";
+
+c.style.height=(w*0.4)+"px";
+
+c.style.left=Math.random()*100+"%";
+
+c.style.background=
+colors[Math.floor(Math.random()*colors.length)];
+
+c.style.animationDelay=(Math.random()*0.4)+"s";
+
+c.style.animationDuration=(1.8+Math.random()*0.8)+"s";
+
+document.body.appendChild(c);
+
+setTimeout(()=>{c.remove();},3200);
+
+}
+
+}
+
+/* ---- pulseClickButton ---- */
+function pulseClickButton(){
+    const btn=document.getElementById("click");
+    if(!btn) return;
+
+    const now=performance.now();
+    lastVisualPress=now;
+
+    btn.classList.remove("touchActive");
+    btn.classList.add("touchActive");
+    btn.classList.remove("clickPressed");
+    void btn.offsetWidth;
+    btn.classList.add("clickPressed");
+
+    /* Resorte real: conserva la transformación base de cada skin y añade
+       squash/stretch encima. Si el dispositivo no soporta Web Animations,
+       el estado visual de pulsación sigue funcionando como respaldo. */
+    try{
+        if(btn._springAnimation) btn._springAnimation.cancel();
+        const base=getComputedStyle(btn).transform;
+        const t=(base && base!=="none") ? base+" " : "";
+        btn._springAnimation=btn.animate([
+            {transform:t+"scale(1,1)"},
+            {transform:t+"scale(1.10,.90)"},
+            {transform:t+"scale(.94,1.07)"},
+            {transform:t+"scale(1.035,.975)"},
+            {transform:t+"scale(1,1)"}
+        ],{duration:380,easing:"cubic-bezier(.2,.8,.2,1)"});
+    }catch(e){}
+
+    clearTimeout(btn._pressTimer);
+    btn._pressTimer=setTimeout(()=>{
+        btn.classList.remove("touchActive");
+        btn.classList.remove("clickPressed");
+    },120);
+}
+
+/* ---- spawnGoldenOrb ---- */
+function spawnGoldenOrb(){
+
+    if(document.getElementById("goldenOrb")) return;
+
+    let o=document.createElement("div");
+
+    o.id="goldenOrb";
+
+    o.className="goldenOrb";
+
+    o.textContent="🍀";
+
+    o.style.left=(15+Math.random()*65)+"%";
+
+    o.style.top=(22+Math.random()*45)+"%";
+
+    o.onclick=claimGoldenOrb;
+
+    document.body.appendChild(o);
+
+    setTimeout(()=>{
+
+        if(o.parentNode){
+            o.remove();
+        }
+
+    },9000);
+
+}
+
+/* ---- toast ---- */
+function toast(text){
+
+let x=document.getElementById("toast");
+
+x.textContent=text;
+
+x.classList.remove("hidden");
+
+setTimeout(()=>{
+    x.classList.add("hidden");
+},1800);
+
+}
+
+/* ---- showConfirm ---- */
+function showConfirm(message,onConfirm){
+
+let existing=document.getElementById("customConfirmOverlay");
+if(existing) existing.remove();
+
+let overlay=document.createElement("div");
+overlay.id="customConfirmOverlay";
+overlay.style.position="fixed";
+overlay.style.inset="0";
+overlay.style.background="#000000cc";
+overlay.style.zIndex="500";
+overlay.style.display="flex";
+overlay.style.alignItems="center";
+overlay.style.justifyContent="center";
+overlay.style.padding="20px";
+
+overlay.innerHTML=`
+<div style="background:#111827;border:1px solid #ffffff22;border-radius:18px;padding:20px;max-width:320px;width:100%;text-align:center">
+<div style="margin-bottom:16px;font-weight:bold;font-size:16px">${message}</div>
+<button id="customConfirmYes" class="buy red" style="width:100%">✅ SÍ, CONTINUAR</button>
+<button id="customConfirmNo" class="buy" style="width:100%">❌ CANCELAR</button>
+</div>
+`;
+
+document.body.appendChild(overlay);
+
+document.getElementById("customConfirmYes").onclick=()=>{
+    overlay.remove();
+    onConfirm();
+};
+
+document.getElementById("customConfirmNo").onclick=()=>{
+    overlay.remove();
+};
+
+}
+
+/* ---- showSeasonNotice ---- */
+function showSeasonNotice(){
+  const season = getCurrentSeason();
+  if(!season) return;
+  if(hasSeenSeasonNotice(season.id)) return;
+
+  // Crear overlay de aviso
+  let existing = document.getElementById("seasonNoticeOverlay");
+  if(existing) existing.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "seasonNoticeOverlay";
+  overlay.style.cssText = "position:fixed;inset:0;background:#000000dd;z-index:600;display:flex;align-items:center;justify-content:center;padding:20px;";
+  overlay.innerHTML = `
+    <div style="background:linear-gradient(145deg,#1a1030,#0d0818);border:2px solid #ff9a3c;border-radius:20px;padding:28px 24px;max-width:340px;width:100%;text-align:center;box-shadow:0 0 40px #ff9a3c55">
+      <div style="font-size:48px;margin-bottom:10px">${season.emoji}</div>
+      <h2 style="margin:0 0 12px;color:#ffb84d;font-size:1.4rem">${season.noticeTitle}</h2>
+      <p style="margin:0 0 20px;line-height:1.5;opacity:.9;white-space:pre-line">${season.noticeText}</p>
+      <button class="buy claim" style="width:100%" id="seasonNoticeBtn">¡ENTENDIDO!</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  document.getElementById("seasonNoticeBtn").onclick = ()=>{
+    markSeasonNoticeSeen(season.id);
+    overlay.remove();
+  };
+}
+
+/* ---- showEgg ---- */
+function showEgg(emoji, opts){
+    opts = opts || {};
+    const isAuto = !!opts.auto;
+    const autoPrice = opts.price || 0;
+    const p=pets[emoji];
+    if(!p) {
+      if(isAuto){ AUTO_EGG.busy=false; if(AUTO_EGG.active) openNextAutoEgg(); }
+      return;
+    }
+
+    /* La variante Shiny se decide al abrir el huevo y queda fijada para
+       que la tarjeta mostrada coincida con la recompensa reclamada. */
+    const isShiny=Math.random()<shinyChance();
+
+    let o=document.createElement("div");
+    o.className="eggOverlay";
+    o.dataset.eggPet=emoji;
+    o.dataset.shiny=isShiny?"1":"0";
+    o.dataset.auto=isAuto?"1":"0";
+    o.dataset.autoPrice=String(autoPrice);
+
+    const progress = isAuto ? (" · "+(AUTO_EGG.opened+1)) : "";
+    o.innerHTML=`
+      <div class="eggBox">
+        <div class="cl2-egg-stage" style="position:relative;min-height:190px;display:flex;align-items:center;justify-content:center">
+          <div id="egg" class="egg cl2-egg-suspense">🥚</div>
+          <div id="eggFlash" class="cl2-egg-flash"></div>
+        </div>
+        <h2>🥚 ABRIENDO HUEVO...${progress}</h2>
+        <p>✨ Algo poderoso está dentro...</p>
+        ${isAuto?'<button class="buy red" style="margin-top:12px" onclick="stopAutoEggSession(\'cancel\')">⏹ CANCELAR</button>':''}
+      </div>`;
+
+    document.body.appendChild(o);
+    const egg=o.querySelector("#egg");
+    const flash=o.querySelector("#eggFlash");
+
+    /* Tres sacudidas separadas. */
+    [0,250,500].forEach((delay,index)=>{
+      setTimeout(()=>{
+        if(!egg || !document.body.contains(egg)) return;
+        egg.classList.remove("cl2-shake-1","cl2-shake-2","cl2-shake-3");
+        void egg.offsetWidth;
+        egg.classList.add("cl2-shake-"+(index+1));
+      },delay);
+    });
+
+    /* Destellos finales antes de la explosión. */
+    setTimeout(()=>{
+      if(flash){
+        flash.classList.remove("active");
+        void flash.offsetWidth;
+        flash.classList.add("active");
+      }
+    },760);
+
+    setTimeout(()=>{
+      if(egg){
+        egg.classList.remove("cl2-shake-1","cl2-shake-2","cl2-shake-3");
+        egg.classList.add("cl2-egg-explode");
+      }
+    },1030);
+
+    setTimeout(()=>{
+      if(!document.body.contains(o)) return;
+      const rarityClass=isShiny?"shiny":p[3];
+      const rarityText=isShiny?"✨ Shiny":p[1];
+      sfx("egg");
+
+      o.innerHTML=`
+        <div class="eggBox">
+          <div class="cl2-reward-card ${rarityClass}">
+            <div class="reveal ${rarityClass}">${emoji}</div>
+            <div class="cl2-rarity-badge">${rarityText}</div>
+            <h2 class="${rarityClass}">${p[0]}</h2>
+            <p>⚡ Multiplicador: <b>x${p[2]}</b></p>
+            ${isShiny?'<p style="color:#ffd83c;font-weight:900">✨ ¡VARIANTE SHINY!</p>':''}
+            ${isAuto
+              ? `<p class="small">Auto ${AUTO_EGG.opened+1} · siguiente en un momento…</p>
+                 <button class="buy red" onclick="stopAutoEggSession('cancel')">⏹ CANCELAR</button>`
+              : `<button class="buy" onclick="claimEggFromOverlay()">🐾 RECLAMAR MASCOTA</button>`}
+          </div>
+        </div>`;
+
+      const card=o.querySelector(".cl2-reward-card");
+      if(card){
+        card.classList.add("cl3-reward-pop");
+        setTimeout(()=>card.classList.remove("cl3-reward-pop"),650);
+      }
+
+      /* Modo auto: reclamar solo y continuar */
+      if(isAuto){
+        setTimeout(()=>{
+          if(!document.body.contains(o)) return;
+          /* Si el jugador canceló durante la animación */
+          if(!AUTO_EGG.active){
+            /* Aun así entregar esta mascota ya pagada */
+            claimEgg(emoji, isShiny);
+            recordAutoEggResult(emoji, isShiny, autoPrice);
+            o.remove();
+            AUTO_EGG.busy = false;
+            showAutoEggSummary();
+            return;
+          }
+          claimEgg(emoji, isShiny);
+          recordAutoEggResult(emoji, isShiny, autoPrice);
+          o.remove();
+          AUTO_EGG.busy = false;
+          if(AUTO_EGG.active){
+            /* Pequeña pausa entre huevos */
+            setTimeout(()=>openNextAutoEgg(), 280);
+          }else{
+            showAutoEggSummary();
+          }
+        }, 850);
+      }
+    },1450);
+}
+
+/* ---- tone ---- */
+function tone(freq,dur,type,vol,delay){
+
+    let ctx=getAudioCtx();
+    if(!ctx) return;
+
+    let t0=ctx.currentTime+(delay||0);
+
+    let osc=ctx.createOscillator();
+    let gain=ctx.createGain();
+
+    osc.type=type||"sine";
+    osc.frequency.setValueAtTime(freq,t0);
+
+    gain.gain.setValueAtTime(0,t0);
+    gain.gain.linearRampToValueAtTime(vol||0.15,t0+0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(t0);
+    osc.stop(t0+dur+0.05);
+
+}
+
+/* ---- chord ---- */
+function chord(freqs,dur,type,vol,delay){
+    freqs.forEach(f=>tone(f,dur,type,vol,delay));
+}
+
+/* ---- punch ---- */
+function punch(freq,dur,delay){
+    tone(freq,dur,"square",0.11,delay||0);
+    tone(freq*0.5,dur,"sine",0.13,delay||0);
+}
+
+/* ---- sfx ---- */
+function sfx(name){
+
+    if(!soundOn()) return;
+
+    switch(name){
+
+        /* Clic crítico: chispazo agudo (rápido a propósito,
+           se dispara muy a menudo) */
+        case "crit":
+            tone(880,0.12,"triangle",0.14,0);
+            tone(1320,0.12,"triangle",0.10,0.05);
+            break;
+
+        /* Fusionar mascotas: brillo mágico ascendente + acorde final */
+        case "fuse":
+            tone(520,0.14,"sine",0.14,0);
+            tone(780,0.14,"sine",0.14,0.09);
+            tone(1040,0.16,"sine",0.14,0.18);
+            chord([780,1040,1300],0.4,"triangle",0.11,0.28);
+            break;
+
+        /* Revelar mascota de un huevo: mini fanfarria juguetona */
+        case "egg":
+            tone(440,0.12,"square",0.10,0);
+            tone(660,0.12,"square",0.10,0.07);
+            chord([660,880,1100],0.35,"sawtooth",0.11,0.16);
+            break;
+
+        /* Reclamar misión / racha / recompensa por tiempo:
+           fanfarria corta de "victoria" con acorde final */
+        case "claim":
+            tone(523.25,0.13,"triangle",0.16,0);
+            tone(659.25,0.13,"triangle",0.16,0.1);
+            tone(783.99,0.16,"triangle",0.17,0.2);
+            chord([1046.5,1318.51,1567.98],0.45,"sawtooth",0.13,0.33);
+            break;
+
+        /* Desbloquear un mundo nuevo: fanfarria de trompetas
+           (ondas de sierra = timbre más "metálico"/brillante)
+           con golpe grave de cierre */
+        case "unlock":
+            tone(392,0.14,"sawtooth",0.13,0);
+            tone(523.25,0.14,"sawtooth",0.13,0.12);
+            tone(659.25,0.16,"sawtooth",0.14,0.24);
+            chord([783.99,987.77,1174.66],0.55,"sawtooth",0.14,0.38);
+            punch(196,0.4,0.38);
+            break;
+
+        /* Renacer: la más épica — swell grave, arpegio ascendente
+           y acorde mayor completo con golpe final */
+        case "rebirth":
+            tone(130.81,0.5,"sawtooth",0.09,0);
+            tone(261.63,0.16,"triangle",0.13,0.2);
+            tone(329.63,0.16,"triangle",0.13,0.33);
+            tone(392,0.16,"triangle",0.13,0.46);
+            tone(523.25,0.2,"triangle",0.15,0.59);
+            chord([523.25,659.25,783.99,1046.5],0.7,"sawtooth",0.13,0.76);
+            punch(130.81,0.5,0.76);
+            break;
+
+        /* Canjear un código: chispa doble con brillo */
+        case "code":
+            tone(700,0.1,"triangle",0.14,0);
+            tone(1050,0.16,"triangle",0.14,0.08);
+            chord([1050,1400],0.3,"sawtooth",0.1,0.16);
+            break;
+
+        default:
+            tone(600,0.1,"sine",0.12,0);
+
+    }
+
+}
+
+/* ---- deletePetUnit ---- */
+function deletePetUnit(k){
+    if(!game.pets[k] || game.pets[k]<=0) return;
+    if(petLocked(k)){
+        toast("🔒 Esta mascota está protegida");
+        return;
+    }
+    if(game.equipped.includes(k)){
+        toast("❌ Primero quita esta mascota del equipo");
+        return;
+    }
+    const reward = deletePetReward(k);
+    if(!confirm("¿Eliminar 1 copia de esta mascota?\nRecibirás ~"+fmt(reward)+" 👆 del mundo actual.")) return;
+    game.pets[k]--;
+    if(game.pets[k]<=0){
+        delete game.pets[k];
+        delete game.petLocks[k];
+        delete game.petFavorites[k];
+    }
+    W().clicks += reward;
+    game.totalClicks += reward;
+    toast("🗑️ Mascota eliminada · +"+fmt(reward)+" 👆");
+    save(); render();
+}
+
+/* ---- deleteShinyUnit ---- */
+function deleteShinyUnit(k){
+    if(!game.shinyPets[k] || game.shinyPets[k]<=0) return;
+    if(petLocked(k)){
+        toast("🔒 Esta mascota Shiny está protegida");
+        return;
+    }
+    if(game.equipped.includes(k)){
+        toast("❌ Primero quita esta mascota del equipo");
+        return;
+    }
+    /* Shiny es la más difícil (5 Doradas = 25 normales) y la más fuerte → mayor recompensa */
+    const reward = Math.floor(deletePetReward(k) * 3.5);
+    if(!confirm("¿Eliminar 1 copia de esta mascota Shiny?\nRecibirás ~"+fmt(reward)+" 👆 del mundo actual.")) return;
+    game.shinyPets[k]--;
+    if(game.shinyPets[k]<=0){
+        delete game.shinyPets[k];
+        delete game.petLocks[k];
+        delete game.petFavorites[k];
+    }
+    W().clicks += reward;
+    game.totalClicks += reward;
+    toast("🗑️ Mascota Shiny eliminada · +"+fmt(reward)+" 👆");
+    save(); render();
+}
+
+/* ---- deleteGoldenUnit ---- */
+function deleteGoldenUnit(k){
+    if(!game.goldenPets[k] || game.goldenPets[k]<=0) return;
+    if(petLocked(k)){ toast("🔒 Esta mascota Dorada está protegida"); return; }
+    if(game.equipped.includes(k)){ toast("❌ Primero quita esta mascota del equipo"); return; }
+    /* Dorada: intermedio entre normal y shiny */
+    const reward = Math.floor(deletePetReward(k) * 2.0);
+    if(!confirm("¿Eliminar 1 copia de esta mascota Dorada?\nRecibirás ~"+fmt(reward)+" 👆 del mundo actual.")) return;
+    game.goldenPets[k]--;
+    if(game.goldenPets[k]<=0){ delete game.goldenPets[k]; delete game.petLocks[k]; delete game.petFavorites[k]; }
+    W().clicks += reward;
+    game.totalClicks += reward;
+    toast("🗑️ Mascota Dorada eliminada · +"+fmt(reward)+" 👆");
+    save(); render();
+}

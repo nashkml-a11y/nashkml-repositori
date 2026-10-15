@@ -1,0 +1,283 @@
+<div id="rotateHint"><div class="ph"></div>Gira el móvil en vertical para jugar</div>
+<canvas id="bgCanvas" aria-hidden="true"></canvas>
+<div id="bgShade" aria-hidden="true"></div>
+<div class="scanlines" aria-hidden="true"></div>
+
+<div id="gdprOverlay" class="modal hidden">
+  <div class="panel dialog">
+    <div class="dlgTitle" data-ico="🔒">PRIVACIDAD</div>
+    <p class="dlgText">Este juego guarda tu progreso en este dispositivo (almacenamiento local). En el futuro podrá mostrar anuncios opcionales a cambio de ventajas temporales gratuitas.</p>
+    <p class="dlgText">Puedes elegir si permites anuncios personalizados o solo anuncios genéricos. Puedes cambiarlo luego borrando los datos del juego.</p>
+    <button class="btn gold" onclick="setConsent('personalized')" data-emojify="16">✅ ACEPTAR</button>
+    <button class="btn" onclick="setConsent('limited')" data-emojify="16">🚫 SOLO ANUNCIOS NO PERSONALIZADOS</button>
+  </div>
+</div>
+
+<div id="titleScreen">
+  <div class="titleInner">
+    <div class="logo">
+      <div class="logoHand" data-ico="hand" data-size="44" data-gap="0"></div>
+      <div class="logoText"><span>CLICKER</span><span>LEGENDS</span></div>
+      <div class="logoSub">EDICIÓN ARCADE</div>
+    </div>
+    <div class="pressStart">PULSA PARA EMPEZAR</div>
+    <div id="titleParade" class="parade"></div>
+    <div class="credits">1 CRÉDITO · © CLICKER LEGENDS</div>
+  </div>
+</div>
+
+<div class="app" id="app">
+
+<header class="top">
+  <div class="brand"><span data-ico="hand" data-size="30" data-gap="0"></span><span class="brandText">CLICKER LEGENDS</span></div>
+  <button class="iconBtn" onclick="save()" aria-label="Guardar" data-ico="floppy" data-size="26" data-gap="0"></button>
+</header>
+
+<!-- ================= INICIO ================= -->
+<section id="home">
+  <div class="panel hero">
+    <div class="heroTop">
+      <div class="heroClicks">
+        <div class="lbl">CLICS DEL MUNDO</div>
+        <div id="clicks" class="bigNum">0</div>
+        <div class="sub" id="clicksExact">0 exactos</div>
+        <div class="worldTag"><span id="worldIcon"></span><span id="worldName"></span></div>
+      </div>
+      <div id="cl2LuckBox" class="luckBox">
+        <span data-ico="🍀" data-size="22" data-gap="0"></span>
+        <b id="cl2LuckStatus">Suerte: inactiva</b>
+        <div class="sub">Mejora drops y crítico.</div>
+      </div>
+    </div>
+    <div class="clickStage">
+      <button id="click" onclick="doClick()" aria-label="Clic"><span id="clickIcon"></span></button>
+    </div>
+    <div id="comboMeter" class="comboMeter"></div>
+    <div class="power">Cada clic produce: <b id="clickPower">1</b> <span data-ico="👆" data-size="18" data-gap="0"></span>
+      <span id="clickPowerExact" class="sub"></span></div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><span data-ico="bolt_big" data-size="30" data-gap="0"></span><div><small>Intensidad</small><b id="intensity"></b></div></div>
+    <div class="stat"><span data-ico="fire" data-size="30" data-gap="0"></span><div><small>Combo</small><b id="combo"></b></div></div>
+    <div class="stat"><span data-ico="crit" data-size="30" data-gap="0"></span><div><small>Crítico</small><b id="crit"></b></div></div>
+    <div class="stat"><span data-ico="paw_big" data-size="28" data-gap="0"></span><div><small>Mascotas</small><b id="equipped"></b></div></div>
+  </div>
+
+  <div class="panel">
+    <h2 data-ico="🔥">Racha diaria</h2>
+    <div class="center streakNum"><span data-ico="fire" data-size="34" data-gap="0"></span><span id="streak"></span></div>
+    <div class="small center">días consecutivos</div>
+    <div id="week" class="week"></div>
+    <div id="streakBox"></div>
+  </div>
+
+  <div class="panel">
+    <h2 data-ico="⏱️">Tiempo jugado</h2>
+    <div class="center"><div id="time" class="clock">00:00:00</div><div id="activity">● ACTIVO</div></div>
+    <div id="timeRewards" class="grid2"></div>
+  </div>
+
+  <div class="panel">
+    <h2 data-ico="⚡">Mejoras</h2>
+    <div id="upgrades"></div>
+  </div>
+</section>
+
+<!-- ================= MASCOTAS ================= -->
+<section id="pets" class="hidden">
+  <div class="panel">
+    <h2 data-ico="paw">Mascotas</h2>
+    <div class="teamLbl">EQUIPO</div>
+    <div id="teamBar" class="teamBar"></div>
+    <button class="btn green wide" onclick="equipBest()" data-emojify="16">⚡ EQUIPAR MEJORES MASCOTAS</button>
+    <div class="small">Puedes equiparte un máximo de 3 mascotas. Los multiplicadores se multiplican entre sí.</div>
+    <div id="cl3PetOrderNote" class="small" data-emojify="14">🐾 Las mascotas de cada huevo aparecen de menor a mayor multiplicador.</div>
+    <div class="petTools">
+      <select id="petSortSelect" onchange="setPetSort(this.value)">
+        <option value="favorite">⭐ Favoritas primero</option>
+        <option value="multDesc">⚡ Multiplicador: mayor → menor</option>
+        <option value="multAsc">⚡ Multiplicador: menor → mayor</option>
+        <option value="levelDesc">⭐ Nivel: mayor → menor</option>
+        <option value="levelAsc">⭐ Nivel: menor → mayor</option>
+        <option value="rarity">💎 Más raras primero</option>
+        <option value="shiny">✨ Shiny primero</option>
+      </select>
+    </div>
+    <div class="small" data-emojify="14">🔒 Protege mascotas importantes y ⭐ marca tus favoritas. 🗑️ Eliminar una copia te devuelve una pequeña cantidad de Clics del mundo actual.</div>
+    <div id="petInventoryBar" class="item center">
+      <b data-emojify="16">📦 Mascotas: <span id="petInvCount">0</span> / 50</b>
+      <div class="pbar inv"><i id="petInvBar" style="width:0%"></i></div>
+    </div>
+    <div id="petList"></div>
+  </div>
+</section>
+
+<!-- ================= HUEVOS ================= -->
+<section id="eggs" class="hidden">
+  <div class="panel">
+    <h2 data-ico="egg">Huevos</h2>
+    <div class="hud"><small data-emojify="14">👆 CLICS DE ESTE MUNDO</small><b id="eggClicksHud" class="num gold">0</b></div>
+    <div id="autoEggControls">
+      <div id="autoOpenStatus" class="small center">En cada huevo puedes abrir varios seguidos con animación. Cancela cuando quieras y verás el resumen.</div>
+      <button id="autoEggCancelBtn" class="btn red wide hidden" onclick="stopAutoEggSession('cancel')" style="display:none" data-emojify="16">⏹️ CANCELAR APERTURA AUTOMÁTICA</button>
+    </div>
+    <div id="eggList"></div>
+  </div>
+</section>
+
+<div id="autoEggSummaryOverlay" class="eggOverlay summary hidden" style="display:none">
+  <div class="panel dialog wideDlg">
+    <div class="dlgTitle" id="autoEggSummaryTitle">Resultados</div>
+    <div class="small center" id="autoEggSummaryMeta"></div>
+    <div id="autoEggSummaryGrid" class="sumGrid"></div>
+    <button class="btn gold" onclick="closeAutoEggSummary()" data-emojify="16">✅ CONTINUAR</button>
+  </div>
+</div>
+
+<!-- ================= MUNDOS ================= -->
+<section id="worlds" class="hidden">
+  <div class="panel">
+    <h2 data-ico="globe">Mundos</h2>
+    <div class="hud"><small data-emojify="14">👆 CLICS DE ESTE MUNDO</small><b id="worldClicksHud" class="num gold">0</b></div>
+    <div class="small">Cada mundo tiene sus propios Clics independientes.<br>
+      Al viajar a un mundo <b>nuevo o ya desbloqueado</b> empiezas con los Clics de ese mundo (los del mundo anterior quedan guardados y se recuperan al volver).<br>
+      Conservas siempre tus mascotas y las mejoras permanentes. El viaje de mundo <b>no</b> da Tokens.</div>
+    <div id="worldRequirementsBox" class="item">
+      <b data-emojify="16">🔓 Requisitos del siguiente mundo</b>
+      <div id="worldRequirements">Cargando requisitos...</div>
+    </div>
+    <div id="worldList"></div>
+  </div>
+</section>
+
+<!-- ================= RENACIMIENTO ================= -->
+<section id="rebirth" class="hidden">
+  <div class="panel center rebirthPanel">
+    <h2 data-ico="rebirth">Renacimiento</h2>
+    <div class="twoNums">
+      <div><small>RENACIMIENTOS</small><b id="rebirths" class="num"></b></div>
+      <div><small data-emojify="14">✨ TOKENS</small><b id="tokens" class="num gold"></b></div>
+    </div>
+    <div class="item left">
+      <b data-emojify="16">📋 Requisitos para renacer</b>
+      <div id="rebirthRequirementsText" class="small">Cargando requisitos...</div>
+    </div>
+    <div class="small left">El <b>Renacimiento</b> reinicia los Clics del mundo actual (y sus mejoras temporales de intensidad/combo/crítico),
+      pero <b>conserva</b> mascotas, mundos desbloqueados y mejoras permanentes.<br><br>
+      Es la <b>única forma</b> de conseguir Tokens. Los Tokens se gastan en la Tienda de Tokens y en el Árbol de mejoras para progresar mucho más rápido.</div>
+    <button id="rebirthBtn" class="btn red big" onclick="rebirth()" data-emojify="20">🔄 RENACER</button>
+  </div>
+  <div class="panel"><h2 data-ico="🌟">Mejoras permanentes</h2><div id="permanent"></div></div>
+  <div class="panel"><h2 data-ico="🪙">Tienda de Tokens</h2>
+    <div class="small">Gasta tus Tokens en ventajas temporales y recompensas especiales. Los Tokens <b>solo se obtienen renaciendo</b>. Puedes comprarlas cuando tengas suficientes Tokens.</div>
+    <div id="tokenShop" class="grid2"></div></div>
+  <div class="panel"><h2 data-ico="📺">Ventajas por anuncio</h2>
+    <div class="small">Mira un anuncio corto para activar una ventaja temporal gratis, sin gastar Tokens.</div>
+    <div id="adShop" class="grid2"></div></div>
+  <div class="panel"><h2 data-ico="🤖">Auto-Clicker</h2>
+    <div class="small">Clica solo con el tiempo. Intensidad y velocidad se mejoran por separado (máx. 10 niveles cada una).<br>
+      Al subir de nivel, el Auto-Clicker tiene una <b>pequeña probabilidad</b> de activar Combo o Crítico (aprox. 15-20 % de la probabilidad del jugador), para que no quede obsoleto en el juego avanzado.</div>
+    <div id="autoClickerBox"></div></div>
+</section>
+
+<!-- ================= MISIONES ================= -->
+<section id="missions" class="hidden">
+  <div class="panel"><h2 data-ico="target">Misiones</h2>
+    <div class="small">Completa objetivos para conseguir recompensas. Cuando una misión esté completa podrás reclamarla.</div>
+    <div id="missionList" class="grid2"></div></div>
+</section>
+
+<!-- ================= ESTADÍSTICAS ================= -->
+<section id="stats" class="hidden">
+  <div class="panel"><h2 data-ico="🏆">Estadísticas</h2>
+    <div class="hsTitle">— HIGH SCORES —</div>
+    <div id="statistics" class="hsTable"></div></div>
+</section>
+
+<!-- ================= BESTIARIO ================= -->
+<section id="pokedex" class="hidden">
+  <div class="panel dexPanel">
+    <div class="dexHead"><span data-ico="book" data-size="30" data-gap="0"></span><span class="dexTitle">BESTIARIO</span></div>
+    <div class="small center">Todas las mascotas de Clicker Legends. Las descubiertas aparecen completas y las que te faltan aparecen en sombra.</div>
+    <div id="dexFilters" class="dexFilters"></div>
+    <div id="pokedexList" class="dexGrid"></div>
+    <div id="dexCount" class="dexCount"></div>
+  </div>
+</section>
+
+<!-- ================= LOGROS ================= -->
+<section id="achievements" class="hidden">
+  <div class="panel"><h2 data-ico="🏆">Logros</h2>
+    <div class="small">Completa objetivos, reclama la recompensa y consigue mejoras permanentes de clics.</div>
+    <div id="achievementList" class="grid2"></div></div>
+</section>
+
+<!-- ================= ÁRBOL ================= -->
+<section id="upgradeTree" class="hidden">
+  <div class="panel"><h2 data-ico="tree">Árbol de mejoras</h2>
+    <div class="small">Elige una especialización. Cada rama tiene mejoras encadenadas y las decisiones son permanentes.</div>
+    <div id="upgradeTreeBox"></div></div>
+</section>
+
+<!-- ================= SKINS ================= -->
+<section id="skins" class="hidden">
+  <div class="panel">
+    <div class="hud"><small data-emojify="14">👆 CLICS DE ESTE MUNDO</small><b id="skinClicksHud" class="num gold">0</b></div>
+    <h2 data-ico="🖱️">Skins del botón</h2>
+    <div class="small">Cambia el aspecto del botón de clic.</div>
+    <div id="buttonSkinGrid" class="skinGrid"></div>
+  </div>
+  <div class="panel"><h2 data-ico="✨">Efectos de clic</h2>
+    <div class="small">Cambia las partículas que salen al pulsar el botón.</div>
+    <div id="clickEffectGrid" class="skinGrid"></div></div>
+  <div class="panel"><h2 data-ico="🌟">Auras</h2>
+    <div class="small">Añaden una energía visual alrededor del botón y un pequeño bonus permanente de clic.</div>
+    <div id="auraGridV2" class="skinGrid"></div></div>
+</section>
+
+<!-- ================= AJUSTES ================= -->
+<section id="settings" class="hidden">
+  <div class="panel"><h2 data-ico="🎁">Códigos</h2>
+    <div class="small">Introduce un código para conseguir una recompensa. Cada código solo se puede usar una vez.</div>
+    <div class="codeRow">
+      <input id="codeInput" type="text" placeholder="ESCRIBE UN CÓDIGO" autocomplete="off">
+      <button class="btn gold" onclick="redeemCode()">CANJEAR</button>
+    </div>
+    <div class="small">Hay 6 códigos normales.</div>
+  </div>
+  <div class="panel"><h2 data-ico="⚙️">Ajustes</h2>
+    <button class="btn wide" id="soundToggleBtn" onclick="toggleSound()">SONIDO</button>
+    <button class="btn wide" id="musicToggleBtn" onclick="getAudioCtx();auInit();musicToggle()">MÚSICA</button>
+    <button class="btn wide" onclick="save()" data-emojify="16">💾 GUARDAR AHORA</button>
+    <button class="btn red wide" onclick="resetGame()" data-emojify="16">🗑️ BORRAR PARTIDA</button>
+    <button class="btn red wide" onclick="deleteAccountAndData()" data-emojify="16">❌ ELIMINAR MI CUENTA Y DATOS</button>
+  </div>
+</section>
+
+</div>
+
+<nav class="nav">
+  <button data-sec="home" onclick="uiGo('home')"><span data-ico="home" data-size="28" data-gap="0"></span><em>Inicio</em></button>
+  <button data-sec="pets" onclick="uiGo('pets')"><span data-ico="paw" data-size="28" data-gap="0"></span><em>Mascotas</em></button>
+  <button data-sec="eggs" onclick="uiGo('eggs')"><span data-ico="egg" data-size="28" data-gap="0"></span><em>Huevos</em></button>
+  <button data-sec="worlds" onclick="uiGo('worlds')"><span data-ico="globe" data-size="28" data-gap="0"></span><em>Mundos</em></button>
+  <button data-sec="rebirth" onclick="uiGo('rebirth')"><span data-ico="rebirth" data-size="28" data-gap="0"></span><em>Renacer</em></button>
+  <button data-sec="missions" onclick="uiGo('missions')"><span data-ico="target" data-size="28" data-gap="0"></span><em>Misiones</em></button>
+  <button id="navMore" onclick="toggleMore()"><span class="moreDots"><i></i><i></i><i></i></span><em>Más</em></button>
+</nav>
+
+<div id="moreMenu" class="moreMenu" onclick="if(event.target===this)closeMore()">
+  <div class="panel moreGrid">
+    <button onclick="uiGo('stats')"><span data-ico="🏆" data-size="30" data-gap="0"></span><em>Stats</em></button>
+    <button onclick="uiGo('pokedex')"><span data-ico="book" data-size="30" data-gap="0"></span><em>Bestiario</em></button>
+    <button onclick="uiGo('achievements')"><span data-ico="🎖️" data-size="30" data-gap="0"></span><em>Logros</em></button>
+    <button onclick="uiGo('upgradeTree')"><span data-ico="tree" data-size="30" data-gap="0"></span><em>Árbol</em></button>
+    <button onclick="uiGo('skins')"><span data-ico="🎨" data-size="30" data-gap="0"></span><em>Skins</em></button>
+    <button onclick="uiGo('settings')"><span data-ico="⚙️" data-size="30" data-gap="0"></span><em>Ajustes</em></button>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<canvas id="fxCanvas" aria-hidden="true"></canvas>
+<canvas id="fxText" aria-hidden="true"></canvas>

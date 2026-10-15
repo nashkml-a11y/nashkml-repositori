@@ -1,0 +1,3 @@
+tools/emojis.json
+tools/__pycache__/
+tests/.ref_fixed.html

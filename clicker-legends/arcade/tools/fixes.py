@@ -1,0 +1,102 @@
+"""Correcciones de errores de la lógica original (solicitadas por el autor).
+
+Cada corrección es una sustitución de texto EXACTA sobre el HTML original.
+make_core.py las aplica antes de extraer la lógica; tests/equivalence.mjs
+aplica las mismas al original para comprobar que la única diferencia entre
+ambos juegos son estas correcciones. Si el texto no aparece exactamente las
+veces indicadas, la construcción falla.
+"""
+import json, os
+
+FIXES = [
+    # ---------------- F1: recompensas que no contaban en «Clics totales» ----------------
+    {"id": "F1a", "desc": "Misiones: la recompensa de clics también suma a los Clics totales",
+     "old": "    W().clicks+=m.reward.clicks||0;\n",
+     "new": "    W().clicks+=m.reward.clicks||0;\n    game.totalClicks+=m.reward.clicks||0; /* [F1a] */\n"},
+    {"id": "F1b", "desc": "Racha diaria: la recompensa también suma a los Clics totales",
+     "old": "W().clicks+=r.clicks;\n",
+     "new": "W().clicks+=r.clicks;\ngame.totalClicks+=r.clicks; /* [F1b] */\n"},
+    {"id": "F1c", "desc": "Recompensas por tiempo: los clics también suman a los Clics totales",
+     "old": "W().clicks+=r[2];\n",
+     "new": "W().clicks+=r[2];\ngame.totalClicks+=r[2]; /* [F1c] */\n"},
+    {"id": "F1d", "desc": "Códigos de clics: también suman a los Clics totales",
+     "old": "apply:()=>{ W().clicks+=5000; }", "new": "apply:()=>{ W().clicks+=5000; game.totalClicks+=5000; /* [F1d] */ }"},
+    {"id": "F1e", "desc": "Código LEAP POWER", "old": "apply:()=>{ W().clicks+=1000000; }",
+     "new": "apply:()=>{ W().clicks+=1000000; game.totalClicks+=1000000; /* [F1e] */ }"},
+    {"id": "F1f", "desc": "Código LUCKY", "old": "apply:()=>{ W().clicks+=250000; game.tokens+=5; }",
+     "new": "apply:()=>{ W().clicks+=250000; game.totalClicks+=250000; /* [F1f] */ game.tokens+=5; }"},
+    {"id": "F1g", "desc": "Código CLICK5K", "old": "apply:()=>{W().clicks+=5000}",
+     "new": "apply:()=>{W().clicks+=5000;game.totalClicks+=5000/* [F1g] */}"},
+    {"id": "F1h", "desc": "Código BOOST25K", "old": "apply:()=>{W().clicks+=25000}",
+     "new": "apply:()=>{W().clicks+=25000;game.totalClicks+=25000/* [F1h] */}"},
+    {"id": "F1i", "desc": "Código HATCH100K", "old": "apply:()=>{W().clicks+=100000}",
+     "new": "apply:()=>{W().clicks+=100000;game.totalClicks+=100000/* [F1i] */}"},
+
+    # ---------------- F2: bonus mostrados pero no aplicados al clic ----------------
+    {"id": "F2", "desc": "El bonus de Logros y el Turbo x2 se aplican al clic real (antes solo aparecían en «Cada clic produce»)",
+     "old": "amount*=1+(equippedAura.bonus||0)/100;\n",
+     "new": "amount*=1+(equippedAura.bonus||0)/100;\n\n/* [F2] Bonus permanente de Logros y Turbo de clics x2 */\namount*=1+(game.achievementBonus||0)/100;\nif(game.clickBoostUntil&&game.clickBoostUntil>Date.now()) amount*=2;\n"},
+
+    # ---------------- F3: compra sin efecto ----------------
+    {"id": "F3", "desc": "La Auto-Apertura (80 Tokens) es necesaria para abrir huevos en automático (antes se pagaba y no hacía nada)",
+     "old": "  if(typeof game===\"undefined\" || typeof W!==\"function\") return;\n\n  eggIndex = Number(eggIndex);",
+     "new": "  if(typeof game===\"undefined\" || typeof W!==\"function\") return;\n  /* [F3] */\n  if(!game.autoOpenEggs){ toast(\"🔒 Desbloquea la Auto-Apertura en la Tienda de Tokens (80 ✨)\"); return; }\n\n  eggIndex = Number(eggIndex);"},
+
+    # ---------------- F4: mejora del árbol sin efecto ----------------
+    {"id": "F4a", "desc": "La suerte del Árbol (rama huevos) se aplica siempre, no solo con Suerte activa",
+     "old": "let rr=Math.max(0,r-(luckyActive||adLuckyActive?0.18:0)*luckBonus);",
+     "new": "let rr=Math.max(0,r-0.18*luckBonus); /* [F4a] */"},
+    {"id": "F4b", "desc": "Igual en la apertura automática",
+     "old": "let rr = Math.max(0, r - (luckyActive||adLuckyActive?0.18:0)*luckBonus);",
+     "new": "let rr = Math.max(0, r - 0.18*luckBonus); /* [F4b] */"},
+
+    # ---------------- F5: huevo gratis con reglas distintas ----------------
+    {"id": "F5", "desc": "El Huevo gratis (30 Tokens) usa la misma suerte que los demás (Suerte x3 de anuncio y Árbol) y suena una sola vez",
+     "old": "        let luckyActive=game.luckUntil && game.luckUntil>Date.now();\n        let i=luckyActive ? (r<0.30?0:r<0.60?1:r<0.85?2:3) : (r<0.55?0:r<0.82?1:r<0.96?2:3);\n        showEgg(list[i]);\n        sfx(\"egg\");\n",
+     "new": "        let luckyActive=game.luckUntil && game.luckUntil>Date.now();\n        /* [F5] */\n        let adLuckyActive=game.adLuckUntil && game.adLuckUntil>Date.now();\n        let rr=Math.max(0,r-0.18*(treeEffectSummary().eggLuck/100));\n        let i=adLuckyActive ? (rr<0.15?0:rr<0.40?1:rr<0.70?2:3) : luckyActive ? (rr<0.30?0:rr<0.60?1:rr<0.85?2:3) : (rr<0.55?0:rr<0.82?1:rr<0.96?2:3);\n        showEgg(list[i]);\n"},
+
+    # ---------------- F6: suerte que se perdía ----------------
+    {"id": "F6", "desc": "La Suerte x2 se acumula (antes el orbe dorado podía reducir 1 h de suerte comprada a 10 min)",
+     "old": "  game.luckUntil=Date.now()+(minutes||10)*60000;",
+     "new": "  game.luckUntil=Math.max(game.luckUntil||0,Date.now())+(minutes||10)*60000; /* [F6] */"},
+
+    # ---------------- F7: shiny contada dos veces ----------------
+    {"id": "F7", "desc": "Un Shiny de huevo da 1 mascota Shiny (antes daba también una normal: 2 huecos de inventario con 1 reservado)",
+     "old": "game.pets[k]=(game.pets[k]||0)+1;\nif(shiny){",
+     "new": "/* [F7] */\nif(!shiny) game.pets[k]=(game.pets[k]||0)+1;\nif(!game.petsDiscovered) game.petsDiscovered={};\ngame.petsDiscovered[e]=true;\nif(shiny){"},
+
+    # ---------------- F8: variantes que no contaban ----------------
+    {"id": "F8a", "desc": "La mascota requerida para un mundo cuenta también si la tienes Dorada o Shiny",
+     "old": "return Object.keys(game.pets).some(k=>{\n    return k.startsWith(emoji+\"|||\") && (game.pets[k]||0)>0;\n});",
+     "new": "return Object.keys(game.pets).some(k=>{\n    return k.startsWith(emoji+\"|||\") && (game.pets[k]||0)>0;\n}) || /* [F8a] */ [game.goldenPets||{}, game.shinyPets||{}].some(m=>Object.keys(m).some(k=>k.includes(\"|||\"+emoji+\"|||\") && (m[k]||0)>0));"},
+    {"id": "F8b", "desc": "El Bestiario cuenta como descubiertas las mascotas que tienes Doradas o Shiny",
+     "old": "        let owns=Object.keys(game.pets||{}).some(k=>k.startsWith(emoji+\"|||\") && (game.pets[k]||0)>0);",
+     "new": "        let owns=Object.keys(game.pets||{}).some(k=>k.startsWith(emoji+\"|||\") && (game.pets[k]||0)>0) || hasPet(emoji); /* [F8b] */"},
+
+    # ---------------- F9: racha con fecha UTC ----------------
+    {"id": "F9", "desc": "La racha diaria usa la fecha local (antes la UTC: en España el día cambiaba a la 1-2 de la madrugada)",
+     "count": 2,
+     "old": "return d\n.toISOString()\n.slice(0,10);",
+     "new": "return d.getFullYear()+\"-\"+String(d.getMonth()+1).padStart(2,\"0\")+\"-\"+String(d.getDate()).padStart(2,\"0\"); /* [F9] */"},
+
+    # ---------------- F10: textos que no coincidían con la recompensa ----------------
+    {"id": "F10", "desc": "Recompensas por tiempo de 5 h, 10 h y 25 h: el texto indica los Tokens que dan realmente",
+     "old": "? \"🥚 Huevo especial\"\n: i===6\n? \"🐾 Recompensa especial\"\n: \"💎 Recompensa divina\";",
+     "new": "? \"✨ +5 Tokens\"\n: i===6\n? \"✨ +15 Tokens\"\n: \"💎 +50 Tokens\"; /* [F10] */"},
+]
+
+
+def apply_fixes(html):
+    for f in FIXES:
+        n = html.count(f["old"])
+        want = f.get("count", 1)
+        if n != want:
+            raise SystemExit("Corrección %s: el texto aparece %d veces (se esperaban %d)" % (f["id"], n, want))
+        html = html.replace(f["old"], f["new"])
+    return html
+
+
+if __name__ == "__main__":
+    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixes.json")
+    json.dump(FIXES, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    print(len(FIXES), "correcciones →", out)
