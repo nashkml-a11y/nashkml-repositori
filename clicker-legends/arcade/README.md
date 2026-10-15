@@ -58,7 +58,7 @@ Sin corregir, porque requieren una decisión de diseño: el logro «Mascota de n
 | Fondos de Volcán, Espacio, Verano y Halloween | Repixelados de las referencias (216×324, 64 colores). |
 | Fondos de Bosque, Desierto, Hielo, Navidad y San Valentín | Generados por código (`tools/gen_backgrounds.py`). |
 | 19 huevos, monedas de las 24 skins, auras, partículas | Generados por código. |
-| Fuentes | Pixelify Sans y Silkscreen (SIL OFL 1.1, licencias en `src/fonts`). |
+| Fuentes | Jersey 10 para textos y números (5/S, 8 y C/O inconfundibles) y Silkscreen para títulos (SIL OFL 1.1, licencias en `src/fonts`). |
 
 Las animaciones de los escenarios son capas dibujadas encima (brasas, nieve, murciélagos, estrellas, olas…). Los fondos son imágenes planas, así que no hay efecto de profundidad (parallax).
 

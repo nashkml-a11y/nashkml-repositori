@@ -1,7 +1,7 @@
 /* =====================================================
    CLICKER LEGENDS — ARCADE 16 BITS
 ===================================================== */
-@font-face{font-family:"Pixelify Sans";src:url(__FONT_PIXELIFY__) format("woff2");font-weight:400 700;font-display:block}
+@font-face{font-family:"Jersey 10";src:url(__FONT_JERSEY__) format("woff2");font-weight:400 700;font-display:block}
 @font-face{font-family:"Silkscreen";src:url(__FONT_SILK__) format("woff2");font-weight:400 700;font-display:block}
 
 :root{
@@ -23,18 +23,18 @@
 :root[data-world="sanvalentin"]{--edge:#e8307a;--edgeHi:#ff8ac0;--edgeLo:#5a0a30;--panel:#2a0a2ee8;--panel2:#1e0722f2;--accent2:#ff8ac0}
 :root[data-world="verano"]{--edge:#e8a01a;--edgeHi:#ffd84a;--edgeLo:#6a4008;--panel:#0b2240e8;--panel2:#071830f2;--accent2:#4ad8ff}
 
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;font-synthesis:none}
 html,body{margin:0;min-height:100%;background:#05040f;color:var(--ink)}
-body{font-family:"Pixelify Sans",monospace;font-size:15px;line-height:1.35;overflow-x:hidden;
+body{font-family:"Jersey 10",monospace;font-size:20px;line-height:1.25;overflow-x:hidden;
   padding-bottom:calc(var(--nav-h) + 18px + env(safe-area-inset-bottom));-webkit-font-smoothing:none;font-smooth:never}
 img,canvas{image-rendering:pixelated;image-rendering:crisp-edges}
 .hidden{display:none!important}
 b,strong{font-weight:700}
 .center{text-align:center}.left{text-align:left}
-.small{font-size:13px;line-height:1.38;color:#d8d3f4;margin:6px 0}
+.small{font-size:17px;line-height:1.38;color:#d8d3f4;margin:6px 0}
 .muted{color:var(--muted)}
-.bigNum,.clock{font-family:"Silkscreen",monospace;letter-spacing:.5px}
-.num,.hsRow b,.cnt{font-family:"Pixelify Sans",monospace;font-weight:700}
+.bigNum,.clock{font-family:"Jersey 10",monospace;letter-spacing:.5px}
+.num,.hsRow b,.cnt{font-family:"Jersey 10",monospace;font-weight:700}
 .gold{color:var(--accent)}
 .ico{image-rendering:pixelated;vertical-align:-4px;display:inline-block}
 .ico.faint{opacity:.35}
@@ -46,7 +46,8 @@ b,strong{font-weight:700}
 body:not([data-section="home"]) #bgShade{background:linear-gradient(#0006,#000a)}
 .scanlines{position:fixed;inset:0;z-index:60;pointer-events:none;opacity:.10;
   background:repeating-linear-gradient(#000 0 1px,transparent 1px 3px)}
-#fxCanvas{position:fixed;inset:0;width:100vw;height:100vh;z-index:300;pointer-events:none}
+#fxCanvas,#fxText{position:fixed;inset:0;width:100vw;height:100vh;z-index:300;pointer-events:none}
+#fxText{z-index:301;image-rendering:auto}
 
 .app{position:relative;z-index:5;max-width:520px;margin:0 auto;padding:10px 12px}
 
@@ -74,7 +75,7 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:8px
    linear-gradient(var(--edgeHi),var(--edgeHi)) right bottom/12px 3px no-repeat,
    linear-gradient(var(--edgeHi),var(--edgeHi)) right bottom/3px 12px no-repeat}
 h2{font-size:16px;margin:0 0 8px;color:#fff;letter-spacing:.5px;text-shadow:2px 2px 0 #000;display:flex;align-items:center;gap:8px;text-transform:uppercase}
-h3{margin:0 0 4px;font-size:15px}
+h3{margin:0 0 4px;font-size:20px}
 .item{background:var(--panel2);border:2px solid var(--edgeLo);box-shadow:inset 0 2px 0 #ffffff0d,0 3px 0 #0007;padding:10px;margin:10px 0}
 .item.wide{grid-column:1/-1}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -83,7 +84,7 @@ h3{margin:0 0 4px;font-size:15px}
 
 /* Botones */
 .btn{display:block;width:100%;margin-top:8px;padding:9px 10px 8px;border:3px solid var(--dark);cursor:pointer;
-  font:700 14px "Pixelify Sans",monospace;letter-spacing:.5px;color:#fff;text-shadow:1px 1px 0 #0009;
+  font:400 20px "Jersey 10",monospace;letter-spacing:.5px;color:#fff;text-shadow:1px 1px 0 #0009;
   background:linear-gradient(#5a68ff 0 50%,#4452e8 50%);
   box-shadow:inset 0 3px 0 #ffffff55,inset 0 -4px 0 #0005,0 4px 0 #000a;transition:filter .1s}
 .btn:hover{filter:brightness(1.12)}
@@ -93,14 +94,14 @@ h3{margin:0 0 4px;font-size:15px}
 .btn.red{background:linear-gradient(#ff5a6a 0 50%,#e0304a 50%)}
 .btn.disabled,.btn:disabled{background:linear-gradient(#4a4866 0 50%,#3c3a56 50%);color:#b8b4d8;cursor:default;filter:none}
 .btn.dim{filter:saturate(.55) brightness(.85)}
-.btn.big{font-size:18px;padding:14px}
+.btn.big{font-size:24px;padding:14px}
 .btn.sq{width:auto;display:inline-block;min-width:38px;margin:0}
 .btn .ico{vertical-align:-3px}
 .btn.pulse{animation:pulse 1s steps(2,end) infinite}
 @keyframes pulse{50%{filter:brightness(1.25)}}
 .btnRow{display:flex;flex-wrap:wrap;gap:6px}
 .btnRow .btn{flex:1 1 140px}
-.mini{flex:1;font:700 12px "Pixelify Sans",monospace;padding:6px 4px;border:2px solid var(--dark);background:#26244a;color:#ddd;cursor:pointer;box-shadow:inset 0 2px 0 #fff2,0 2px 0 #000a}
+.mini{flex:1;font:700 16px "Jersey 10",monospace;padding:6px 4px;border:2px solid var(--dark);background:#26244a;color:#ddd;cursor:pointer;box-shadow:inset 0 2px 0 #fff2,0 2px 0 #000a}
 .mini.on{background:#5a4a10;color:#ffe25a}
 .mini.lock{background:#22406a;color:#9fd8ff}
 .mini.del:hover{background:#5a1622}
@@ -119,14 +120,14 @@ h3{margin:0 0 4px;font-size:15px}
 .hero .lbl,.hero .sub,.hero .power{text-shadow:2px 0 #000,-2px 0 #000,0 2px #000,0 -2px #000}
 .heroTop{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start}
 .heroClicks{text-align:center;padding-left:72px}
-.lbl{font:700 14px "Pixelify Sans",monospace;letter-spacing:1px;color:#fff;text-shadow:2px 2px 0 #000}
-.bigNum{font-size:48px;line-height:1;font-weight:700;color:#ffe25a;margin:4px 0 2px;
+.lbl{font:700 18px "Jersey 10",monospace;letter-spacing:1px;color:#fff;text-shadow:2px 2px 0 #000}
+.bigNum{font-size:60px;line-height:1;font-weight:700;color:#ffe25a;margin:4px 0 2px;
   text-shadow:3px 0 #5a2a00,-3px 0 #5a2a00,0 3px #5a2a00,0 -3px #5a2a00,3px 3px #5a2a00,-3px 3px #5a2a00,3px -3px #5a2a00,-3px -3px #5a2a00,0 6px #1a0800}
-.sub{font-size:12px;color:#d8d3f4}
+.sub{font-size:16px;color:#d8d3f4}
 .worldTag{display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-weight:700;background:#0006;padding:2px 10px;border:2px solid #0008}
-.luckBox{width:72px;font-size:11px;padding:6px 4px;text-align:center;background:var(--panel2);border:2px solid var(--edgeLo);line-height:1.2}
-.luckBox b{display:block;font-size:11px;margin:2px 0}
-.luckBox .sub{font-size:10px}
+.luckBox{width:72px;font-size:15px;padding:6px 4px;text-align:center;background:var(--panel2);border:2px solid var(--edgeLo);line-height:1.2}
+.luckBox b{display:block;font-size:15px;margin:2px 0}
+.luckBox .sub{font-size:13px}
 .luckBox.on{border-color:var(--good);box-shadow:0 0 0 2px #0a3a1a,0 0 14px #4cff9155;animation:pulse 1s steps(2,end) infinite}
 .clickStage{display:flex;justify-content:center;align-items:center;min-height:226px;margin:6px 0 2px}
 #click{width:192px;height:192px;border:0;padding:0;background:transparent center/100% 100% no-repeat;cursor:pointer;position:relative;
@@ -138,8 +139,8 @@ h3{margin:0 0 4px;font-size:15px}
 @keyframes coinIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 @keyframes coinPress{0%{transform:scale(1.10,.88)}50%{transform:scale(.94,1.06)}100%{transform:scale(1,1)}}
 .power{font-weight:700;margin-top:6px}
-.power b{font-family:"Silkscreen",monospace;color:var(--accent);font-size:17px}
-.comboMeter{display:flex;align-items:center;justify-content:center;gap:8px;margin:2px auto 4px;font:700 13px "Pixelify Sans",monospace;position:relative;padding-bottom:5px;max-width:300px}
+.power b{font-family:"Jersey 10",monospace;color:var(--accent);font-size:24px}
+.comboMeter{display:flex;align-items:center;justify-content:center;gap:8px;margin:2px auto 4px;font:700 17px "Jersey 10",monospace;position:relative;padding-bottom:5px;max-width:300px}
 .comboMeter.off{opacity:.55}
 .pips{display:flex;gap:3px}
 .pips i{width:16px;height:10px;background:#1a1838;border:2px solid #000;box-shadow:inset 0 2px 0 #fff1}
@@ -151,18 +152,18 @@ h3{margin:0 0 4px;font-size:15px}
 
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 3px}
 .stat{display:flex;align-items:center;gap:10px;background:var(--panel);border:3px solid var(--edge);box-shadow:0 0 0 3px var(--dark),inset 0 0 0 2px var(--edgeLo),0 5px 0 3px #0008;padding:8px 10px}
-.stat small{display:block;font-size:13px;color:#fff;font-weight:700}
-.stat b{font:700 22px "Pixelify Sans",monospace;color:var(--accent)}
-.stat b.locked{color:var(--bad);font-size:14px}
-.streakNum{font:700 40px "Silkscreen",monospace;color:#ffb04a;display:flex;align-items:center;justify-content:center;gap:8px;text-shadow:3px 3px 0 #000}
+.stat small{display:block;font-size:17px;color:#fff;font-weight:700}
+.stat b{font:700 29px "Jersey 10",monospace;color:var(--accent)}
+.stat b.locked{color:var(--bad);font-size:18px}
+.streakNum{font:700 50px "Jersey 10",monospace;color:#ffb04a;display:flex;align-items:center;justify-content:center;gap:8px;text-shadow:3px 3px 0 #000}
 .week{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:10px 0}
-.day{position:relative;background:var(--panel2);border:2px solid var(--edgeLo);text-align:center;padding:5px 0 3px;font:700 10px "Pixelify Sans",monospace}
+.day{position:relative;background:var(--panel2);border:2px solid var(--edgeLo);text-align:center;padding:5px 0 3px;font:700 13px "Jersey 10",monospace}
 .day span{display:block;margin-bottom:2px}
 .day.done{background:#123a22;border-color:#3fd46a;opacity:.85}
 .day.today{border-color:var(--accent);box-shadow:0 0 0 2px #000,0 0 12px #ffd83c88;animation:pulse 1s steps(2,end) infinite}
 .day .tick{position:absolute;right:1px;top:1px;line-height:0}
-.clock{font-size:32px;color:#fff;text-shadow:3px 3px 0 #000}
-#activity{font:700 13px "Pixelify Sans",monospace;margin:2px 0 6px}
+.clock{font-size:40px;color:#fff;text-shadow:3px 3px 0 #000}
+#activity{font:700 17px "Jersey 10",monospace;margin:2px 0 6px}
 .tr .trHead{font-weight:700}
 .tr.claimable{border-color:var(--accent)}
 .tr.claimed{opacity:.7}
@@ -170,24 +171,24 @@ h3{margin:0 0 4px;font-size:15px}
 .upgBody{flex:1}
 
 /* Mascotas */
-.teamLbl{font:700 12px "Pixelify Sans",monospace;color:var(--muted);letter-spacing:2px;text-align:center}
+.teamLbl{font:700 16px "Jersey 10",monospace;color:var(--muted);letter-spacing:2px;text-align:center}
 .teamBar{display:grid;grid-template-columns:repeat(3,1fr) 1.1fr;gap:6px;margin:6px 0 4px}
 .slot{position:relative;height:78px;background:#05041a;border:3px solid var(--edgeLo);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 2px #fff1}
 .slot.empty{border-style:dashed}
-.slotM{position:absolute;bottom:1px;right:3px;font:700 11px "Pixelify Sans",monospace;color:var(--accent);text-shadow:1px 1px 0 #000}
-.teamTotal{display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--panel2);border:3px solid var(--accent);font:700 12px "Pixelify Sans",monospace}
-.teamTotal b{font-size:15px}
-.petTools select,#codeInput{width:100%;font:700 13px "Pixelify Sans",monospace;color:#fff;background:#05041a;border:3px solid var(--edge);padding:8px;margin:8px 0;outline:none}
+.slotM{position:absolute;bottom:1px;right:3px;font:700 15px "Jersey 10",monospace;color:var(--accent);text-shadow:1px 1px 0 #000}
+.teamTotal{display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--panel2);border:3px solid var(--accent);font:700 16px "Jersey 10",monospace}
+.teamTotal b{font-size:20px}
+.petTools select,#codeInput{width:100%;font:700 17px "Jersey 10",monospace;color:#fff;background:#05041a;border:3px solid var(--edge);padding:8px;margin:8px 0;outline:none}
 .petCard{display:flex;gap:10px;align-items:flex-start;border-left-width:6px}
 .petCard.eq{box-shadow:inset 0 0 0 2px var(--accent),0 3px 0 #0007}
 .petPic{position:relative;width:76px;min-width:76px;height:76px;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#ffffff14 0 40%,transparent 41%)}
-.eqTag{position:absolute;top:-4px;left:-4px;font:700 10px "Pixelify Sans",monospace;background:var(--accent);color:#3a2000;padding:1px 3px;border:2px solid #000}
+.eqTag{position:absolute;top:-4px;left:-4px;font:700 13px "Jersey 10",monospace;background:var(--accent);color:#3a2000;padding:1px 3px;border:2px solid #000}
 .petInfo{flex:1;min-width:0}
-.chip{display:inline-block;font:700 11px "Pixelify Sans",monospace;padding:2px 6px;border:2px solid #000;background:#2a2850;color:#fff;margin:3px 0;vertical-align:middle}
+.chip{display:inline-block;font:700 15px "Jersey 10",monospace;padding:2px 6px;border:2px solid #000;background:#2a2850;color:#fff;margin:3px 0;vertical-align:middle}
 .chip.legendary{background:#5a4a00;color:#ffe25a}
-.mult{font:700 14px "Pixelify Sans",monospace}
-.mult.big{font-size:20px;margin:2px 0}
-.varTag{font:700 11px "Pixelify Sans",monospace;padding:1px 5px;border:2px solid #000;margin-left:4px}
+.mult{font:700 18px "Jersey 10",monospace}
+.mult.big{font-size:26px;margin:2px 0}
+.varTag{font:700 15px "Jersey 10",monospace;padding:1px 5px;border:2px solid #000;margin-left:4px}
 .varTag.gold{background:#ffd83c;color:#3a2000}
 .varTag.shiny{background:linear-gradient(90deg,#ff5bd0,#ffe25a,#42e5ff);color:#2a003a;animation:hue 2s steps(12) infinite}
 .petCard.golden{background:linear-gradient(#3a2c0af2,var(--panel2))}
@@ -218,8 +219,8 @@ h3{margin:0 0 4px;font-size:15px}
 
 /* Huevos */
 .hud{display:flex;justify-content:space-between;align-items:center;background:#05041a;border:2px solid var(--edgeLo);padding:6px 10px;margin:6px 0 10px}
-.hud small{font:700 12px "Pixelify Sans",monospace;color:var(--muted)}
-.hud b{font-size:20px}
+.hud small{font:700 16px "Jersey 10",monospace;color:var(--muted)}
+.hud b{font-size:26px}
 .eggCard .eggHead{display:flex;gap:12px;align-items:center}
 .eggPed{width:92px;min-width:92px;height:110px;display:flex;align-items:flex-end;justify-content:center;
   background:radial-gradient(ellipse 40px 10px at 50% 94%,#0008 0 98%,transparent 100%)}
@@ -228,29 +229,29 @@ h3{margin:0 0 4px;font-size:15px}
 @keyframes wobble{0%,70%,100%{transform:rotate(0)}74%{transform:rotate(-6deg)}78%{transform:rotate(6deg)}82%{transform:rotate(-4deg)}86%{transform:rotate(3deg)}90%{transform:rotate(0)}}
 .lineup{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:10px 0 2px}
 .lu{background:#05041a;border:2px solid #000;border-left:4px solid;text-align:center;padding:4px 2px;min-height:86px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
-.luN{font-size:10px;line-height:1.1;margin-top:2px}
-.luM{font:700 11px "Pixelify Sans",monospace;color:var(--rc)}
+.luN{font-size:13px;line-height:1.1;margin-top:2px}
+.luM{font:700 15px "Jersey 10",monospace;color:var(--rc)}
 
 /* Mundos */
 .worldCard.here{border-color:var(--accent);box-shadow:0 0 0 2px #000,0 0 18px #ffd83c44}
 .worldCard.sealed .worldThumb{filter:grayscale(.85) brightness(.6)}
 .worldThumb{position:relative;height:92px;background-size:cover;background-position:50% 32%;image-rendering:pixelated;border:2px solid #000;margin-bottom:6px;box-shadow:inset 0 -30px 30px -10px #000c}
-.wtName{position:absolute;left:6px;bottom:4px;font:700 15px "Pixelify Sans",monospace;text-shadow:2px 2px 0 #000;display:flex;align-items:center;gap:4px}
+.wtName{position:absolute;left:6px;bottom:4px;font:700 20px "Jersey 10",monospace;text-shadow:2px 2px 0 #000;display:flex;align-items:center;gap:4px}
 .worldThumb .chip{position:absolute;right:6px;top:6px}
 .reqRow{margin:4px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 
 /* Renacer */
 .twoNums{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0}
 .twoNums>div{background:#05041a;border:2px solid var(--edgeLo);padding:8px}
-.twoNums small{display:block;font:700 12px "Pixelify Sans",monospace;color:var(--muted)}
-.twoNums b{font:700 32px "Silkscreen",monospace}
+.twoNums small{display:block;font:700 16px "Jersey 10",monospace;color:var(--muted)}
+.twoNums b{font:700 40px "Jersey 10",monospace}
 #rebirthBtn.ready{animation:pulse .8s steps(2,end) infinite;box-shadow:inset 0 3px 0 #ffffff55,inset 0 -4px 0 #0005,0 4px 0 #000a,0 0 22px #ff4d6d99}
 .shop .shopHead{display:flex;align-items:center;gap:6px}
 .timer{color:var(--good);font-weight:700}
 .lvPips{display:flex;gap:2px;margin:6px 0 0}
 .lvPips i{flex:1;height:8px;background:#1a1838;border:1px solid #000}
 .lvPips i.on{background:var(--good)}
-.robo b{font-size:16px}
+.robo b{font-size:21px}
 
 /* Misiones y logros */
 .quest .qHead{display:flex;align-items:center;gap:6px}
@@ -262,7 +263,7 @@ h3{margin:0 0 4px;font-size:15px}
 .hsTitle{text-align:center;color:var(--accent);letter-spacing:2px;margin:-2px 0 8px;animation:pulse 1.4s steps(2,end) infinite}
 .hsRow{display:flex;align-items:center;gap:10px;padding:7px 6px;border-bottom:2px dashed #ffffff18}
 .hsRow span{flex:1}
-.hsRow b{color:var(--accent);font-size:15px}
+.hsRow b{color:var(--accent);font-size:20px}
 .hsRow:nth-child(odd){background:#ffffff08}
 
 /* Bestiario */
@@ -270,7 +271,7 @@ h3{margin:0 0 4px;font-size:15px}
 .dexTitle{font-size:32px;color:#ffe25a;letter-spacing:1px;
   text-shadow:3px 0 #8a3a00,-3px 0 #8a3a00,0 3px #8a3a00,0 -3px #8a3a00,3px 3px #8a3a00,0 6px #2a1000}
 .dexFilters{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}
-.dexChip{display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 4px;font:700 13px "Pixelify Sans",monospace;color:#fff;cursor:pointer;
+.dexChip{display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 4px;font:700 17px "Jersey 10",monospace;color:#fff;cursor:pointer;
   background:var(--panel2);border:3px solid #3b36b0;box-shadow:0 0 0 2px #000,inset 0 2px 0 #fff2}
 .dexChip:last-child{grid-column:2}
 .dexChip.on{border-color:var(--edgeHi);background:var(--edgeLo);box-shadow:0 0 0 2px #000,0 0 12px var(--edgeHi)}
@@ -279,8 +280,8 @@ h3{margin:0 0 4px;font-size:15px}
 .dexCard .spr{min-height:96px}
 .dexCard h3{margin:4px 0 0}
 .dexCard.missing{opacity:.85}
-.wchip{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:2px 10px;border:2px solid var(--edge);background:#05041a;margin:3px 0}
-.dexCount{text-align:center;font:700 14px "Pixelify Sans",monospace;color:var(--muted);margin-top:10px}
+.wchip{display:inline-flex;align-items:center;gap:4px;font-size:16px;padding:2px 10px;border:2px solid var(--edge);background:#05041a;margin:3px 0}
+.dexCount{text-align:center;font:700 18px "Jersey 10",monospace;color:var(--muted);margin-top:10px}
 .warnTxt{color:#ffb84d}
 .seasonTxt{color:#ff9a3c}
 
@@ -297,12 +298,12 @@ h3{margin:0 0 4px;font-size:15px}
 .treeLine{fill:none;stroke:#3b36b0;stroke-width:8;stroke-dasharray:12 6}
 .treeLine.active{stroke:#ffd83c;stroke-dasharray:none}
 .treeNode{position:absolute;width:190px;min-height:104px;padding:8px;background:var(--panel2);border:4px solid var(--edge);box-shadow:0 0 0 3px #000,0 6px 0 3px #0009;text-align:center}
-.treeNode h3{font-size:17px}
+.treeNode h3{font-size:22px}
 .treeNode.purchased{border-color:#ffd83c;background:#2a2008}
 .treeNode.locked{filter:grayscale(.7) brightness(.7)}
 .treeNode.b-clicks{border-top-color:#ff7a3a}.treeNode.b-eggs{border-top-color:#4cff91}.treeNode.b-pets{border-top-color:#c86aff}
-.treeMini{font-size:12px;color:#d8d3f4}
-.treeCost{font:700 14px "Pixelify Sans",monospace;color:var(--accent);margin-top:4px}
+.treeMini{font-size:16px;color:#d8d3f4}
+.treeCost{font:700 18px "Jersey 10",monospace;color:var(--accent);margin-top:4px}
 
 /* Skins */
 .skinGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px}
@@ -320,7 +321,7 @@ h3{margin:0 0 4px;font-size:15px}
 .nav{position:fixed;left:0;right:0;bottom:0;z-index:200;display:grid;grid-template-columns:repeat(7,1fr);max-width:560px;margin:0 auto;
   padding:6px 6px calc(6px + env(safe-area-inset-bottom));background:var(--panel2);border-top:3px solid var(--edge);box-shadow:0 -3px 0 #000}
 .nav button{background:transparent;border:3px solid transparent;color:#fff;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 0;cursor:pointer}
-.nav button em{font:700 10px "Pixelify Sans",monospace;font-style:normal}
+.nav button em{font:700 13px "Jersey 10",monospace;font-style:normal}
 .nav button.on{border-color:#42b8ff;background:#0a2a5a;box-shadow:inset 0 0 0 2px #000,0 0 10px #42b8ff66}
 .nav button:active{transform:translateY(2px)}
 .moreDots{display:flex;gap:3px;height:28px;align-items:center}
@@ -329,7 +330,7 @@ h3{margin:0 0 4px;font-size:15px}
 .moreMenu.open{display:flex}
 .moreGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:min(520px,94vw);animation:slideUp .18s steps(3)}
 .moreGrid button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;background:var(--panel2);border:3px solid var(--edgeLo);color:#fff;cursor:pointer;box-shadow:0 3px 0 #000}
-.moreGrid button em{font:700 13px "Pixelify Sans",monospace;font-style:normal}
+.moreGrid button em{font:700 17px "Jersey 10",monospace;font-style:normal}
 @keyframes slideUp{from{transform:translateY(30px);opacity:0}}
 
 /* Avisos */
@@ -350,7 +351,7 @@ h3{margin:0 0 4px;font-size:15px}
 .seasonPets{display:flex;justify-content:center;gap:4px;margin:8px 0}
 .sumGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin:12px 0;max-height:50vh;overflow:auto}
 .sumCard{background:var(--panel2);border:2px solid var(--rc,#333);padding:8px 4px;text-align:center}
-.sumCard .cnt{font-size:16px;color:var(--accent)}
+.sumCard .cnt{font-size:21px;color:var(--accent)}
 .shinyTxt{color:#ffd83c;font-weight:700}
 
 /* Apertura de huevo */
@@ -380,7 +381,7 @@ h3{margin:0 0 4px;font-size:15px}
 .revealPet{position:relative;height:150px;display:flex;align-items:center;justify-content:center}
 .revealCard h2{font-size:24px;justify-content:center;margin:4px 0;position:relative}
 .revealCard p,.revealCard .btn{position:relative}
-.rarityBadge{display:inline-block;position:relative;font:700 13px "Pixelify Sans",monospace;padding:3px 10px;background:#000;color:var(--rc);border:2px solid var(--rc)}
+.rarityBadge{display:inline-block;position:relative;font:700 17px "Jersey 10",monospace;padding:3px 10px;background:#000;color:var(--rc);border:2px solid var(--rc)}
 .r-shiny .rarityBadge,.rarityBadge.r-shiny{animation:hue 2s steps(12) infinite}
 
 /* Orbe dorado */
@@ -401,7 +402,7 @@ h3{margin:0 0 4px;font-size:15px}
 .logoText span{font-size:48px;color:#ffe25a;letter-spacing:2px;
   text-shadow:4px 0 #8a3a00,-4px 0 #8a3a00,0 4px #8a3a00,0 -4px #8a3a00,4px 4px #8a3a00,-4px 4px #8a3a00,4px -4px #8a3a00,-4px -4px #8a3a00,0 9px #2a1000,4px 9px #2a1000,-4px 9px #2a1000}
 .logoText span+span{color:#fff6c0}
-.logoSub{margin-top:14px;font:700 14px "Pixelify Sans",monospace;letter-spacing:4px;color:#7af0ff;text-shadow:2px 2px 0 #000;background:#0008;padding:4px 12px;border:2px solid #7af0ff}
+.logoSub{margin-top:14px;font:700 18px "Jersey 10",monospace;letter-spacing:4px;color:#7af0ff;text-shadow:2px 2px 0 #000;background:#0008;padding:4px 12px;border:2px solid #7af0ff}
 .pressStart{margin-top:42px;font:700 16px "Silkscreen",monospace;color:#fff;text-shadow:3px 3px 0 #000;animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
 .parade{position:relative;height:80px;margin-top:34px;overflow:hidden}
@@ -409,7 +410,7 @@ h3{margin:0 0 4px;font-size:15px}
 .walker .spr{animation:hop .4s steps(2) infinite}
 @keyframes walk{to{left:110%}}
 @keyframes hop{50%{transform:translateY(-4px)}}
-.credits{margin-top:18px;font:700 12px "Pixelify Sans",monospace;color:#c8c4f0;letter-spacing:2px}
+.credits{margin-top:18px;font:700 16px "Jersey 10",monospace;color:#c8c4f0;letter-spacing:2px}
 
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important;animation-iteration-count:1!important}}
 

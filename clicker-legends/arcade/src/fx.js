@@ -22,6 +22,8 @@ function fxIcon(key){
 function fxInit(){
   FX.cv = $id("fxCanvas");
   FX.ctx = FX.cv.getContext("2d");
+  FX.tcv = $id("fxText");
+  FX.tctx = FX.tcv.getContext("2d");
   fxResize();
   window.addEventListener("resize", fxResize);
   requestAnimationFrame(fxLoop);
@@ -31,6 +33,9 @@ function fxResize(){
   FX.w = Math.ceil(window.innerWidth / FX.S); FX.h = Math.ceil(window.innerHeight / FX.S);
   FX.cv.width = FX.w; FX.cv.height = FX.h;
   FX.ctx.imageSmoothingEnabled = false;
+  FX.dpr = Math.min(3, window.devicePixelRatio || 1);
+  FX.tcv.width = Math.ceil(window.innerWidth*FX.dpr); FX.tcv.height = Math.ceil(window.innerHeight*FX.dpr);
+  FX.tctx.imageSmoothingEnabled = false;
 }
 
 /* Centro del botón de clic en coordenadas de arte */
@@ -72,11 +77,12 @@ function fxRing(x, y, color, max){ FX.rings.push({x, y, r:2, max:max||26, c:colo
 /* Texto pixel nítido: se rasteriza, se binariza el alfa y se añade contorno.
    Se cachea por (texto, tamaño, color). */
 const TXT_CACHE = new Map();
-function textSprite(text, size, color, outline){
-  const key = text+"|"+size+"|"+color+"|"+(outline||"");
+function textSprite(text, size, color, outline, family){
+  family = family || "Jersey 10";
+  const key = text+"|"+size+"|"+color+"|"+(outline||"")+"|"+family;
   if(TXT_CACHE.has(key)) return TXT_CACHE.get(key);
   const m = document.createElement("canvas").getContext("2d");
-  m.font = size+"px 'Silkscreen', monospace";
+  m.font = size+"px '"+family+"', monospace";
   const w = Math.ceil(m.measureText(text).width) + 4, h = size + 5;
   const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
   const g = cv.getContext("2d");
@@ -267,28 +273,36 @@ function fxLoop(now){
       else { const s = fade > 0.5 ? p.sz : 1; ctx.fillRect((p.x-s/2)|0, (p.y-s/2)|0, s, s); }
     }
   }
-  /* Textos flotantes */
+  /* Textos flotantes (capa nítida a resolución de pantalla) */
+  const tc = FX.tctx, D = FX.dpr, K = FX.S*D;
+  tc.clearRect(0,0,FX.tcv.width,FX.tcv.height);
   for(let i=FX.floats.length-1;i>=0;i--){
     const f = FX.floats[i]; f.life += dt;
     if(f.life >= f.max){ FX.floats.splice(i,1); continue; }
     const k = f.life/f.max;
-    const x = f.x + Math.sin(k*3)*f.wob, y = f.y + f.vy*f.life*(1 - k*0.4);
-    const size = 8;
+    const pop = f.life < 0.09 ? 1.25 - f.life*2.8 : 1;
+    const x = (f.x + Math.sin(k*3)*f.wob)*K, y = (f.y + f.vy*f.life*(1 - k*0.4))*K;
+    const fs = Math.round((f.big ? 34 : 28)*D*pop);
+    tc.font = fs+"px 'Jersey 10', monospace";
+    tc.textBaseline = "middle"; tc.lineJoin = "round";
     const segs = f.segs || (f.segs = String(f.text).split(EMOJI_RE).filter(Boolean));
-    const blink = (k > 0.75 && ((f.life*20)|0)%2);
-    const parts = segs.map(sg => EMOJI_TEST.test(sg)
-      ? (ASSETS.icons[sg] ? { img: fxIcon(sg), w: size+1 } : null)
-      : { cv: textSprite(sg, size, blink ? "#ffffff" : f.c) });
+    const isz = Math.round(fs*0.8);
     let total = 0;
-    for(const pt of parts) if(pt) total += pt.cv ? pt.cv.width - 2 : pt.w;
-    const sc = (f.big && total*2 < FX.w*0.92) ? 2 : 1;
-    let cx = Math.round(Math.max(1, Math.min(FX.w - total*sc - 1, x - total*sc/2)));
-    const cy = (y - (f.life < 0.08 ? 1 : 0))|0;
+    const parts = segs.map(sg=>{
+      if(EMOJI_TEST.test(sg)){ const im = ASSETS.icons[sg] ? fxIcon(sg) : null; if(!im) return null; total += isz + 3*D; return {im}; }
+      const w = tc.measureText(sg).width; total += w; return {t:sg, w};
+    });
+    let cx = Math.max(4*D, Math.min(FX.tcv.width - total - 4*D, x - total/2));
+    tc.globalAlpha = k > 0.8 ? (1-k)/0.2 : 1;
     for(const pt of parts){
       if(!pt) continue;
-      if(pt.cv){ ctx.drawImage(pt.cv, cx-2*sc, cy - (pt.cv.height*sc/2|0), pt.cv.width*sc, pt.cv.height*sc); cx += (pt.cv.width - 2)*sc; }
-      else { if(pt.img && pt.img.complete) ctx.drawImage(pt.img, cx, cy - (size*sc/2|0) - 1, size*sc, size*sc); cx += pt.w*sc; }
+      if(pt.im){ if(pt.im.complete) tc.drawImage(pt.im, Math.round(cx), Math.round(y - isz/2), isz, isz); cx += isz + 3*D; continue; }
+      tc.lineWidth = 5*D; tc.strokeStyle = "#1a0e24"; tc.strokeText(pt.t, cx, y + 2*D);
+      tc.strokeText(pt.t, cx, y);
+      tc.fillStyle = f.c; tc.fillText(pt.t, cx, y);
+      cx += pt.w;
     }
+    tc.globalAlpha = 1;
   }
   /* Destello */
   if(FX.flash > 0.01){
@@ -358,7 +372,7 @@ function renderCoin(skin, size){
   }
   /* Rótulo CLICK */
   if(size >= 64){
-    const ts = textSprite("CLICK", 8, "#ffffff");
+    const ts = textSprite("CLICK", 8, "#ffffff", null, "Silkscreen");
     g.drawImage(ts, Math.round(cx + 0.5 - ts.width/2), Math.round(cy + size*0.22 - ts.height/2));
   }
   const url = cv.toDataURL();

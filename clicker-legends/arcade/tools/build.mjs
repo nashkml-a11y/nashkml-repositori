@@ -43,7 +43,7 @@ if(dup.length){ console.error("Funciones duplicadas:", dup); process.exit(1); }
 
 const b64 = (p)=>"data:font/woff2;base64,"+fs.readFileSync(p).toString("base64");
 const css = read(SRC("style.css"))
-  .replace("__FONT_PIXELIFY__", b64(SRC("fonts/pixelify-sans.woff2")))
+  .replace("__FONT_JERSEY__", b64(SRC("fonts/jersey10.woff2")))
   .replace("__FONT_SILK__", b64(SRC("fonts/silkscreen-bold.woff2")));
 
 const html = `<!DOCTYPE html>
@@ -53,7 +53,7 @@ const html = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#08061a">
 <title>Clicker Legends Arcade</title>
-<!-- Fuentes: Pixelify Sans y Silkscreen (SIL Open Font License 1.1). Emojis pixelados a partir de Noto Color Emoji (Apache 2.0 / OFL). -->
+<!-- Fuentes: Jersey 10 y Silkscreen (SIL Open Font License 1.1). Emojis pixelados a partir de Noto Color Emoji (Apache 2.0 / OFL). -->
 <style>
 ${css}
 </style>

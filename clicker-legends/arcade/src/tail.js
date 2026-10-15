@@ -16,7 +16,7 @@ function uiRefreshArt(){
   try{ renderSkins(); }catch(e){}
 }
 if(document.fonts && document.fonts.load){
-  Promise.all([document.fonts.load("8px Silkscreen"), document.fonts.load("15px 'Pixelify Sans'")]).then(()=>setTimeout(uiRefreshArt, 60));
+  Promise.all([document.fonts.load("8px Silkscreen"), document.fonts.load("10px 'Jersey 10'"), document.fonts.load("20px 'Jersey 10'")]).then(()=>setTimeout(uiRefreshArt, 60));
 }
 window.addEventListener("load", ()=>setTimeout(uiRefreshArt, 120));
 
