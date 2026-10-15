@@ -414,3 +414,5 @@ h3{margin:0 0 4px;font-size:15px}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important;animation-iteration-count:1!important}}
 
 body.titleMode .app,body.titleMode .nav{visibility:hidden}
+body.titleMode{overflow:hidden;touch-action:none}
+#titleScreen{touch-action:none;overscroll-behavior:none}

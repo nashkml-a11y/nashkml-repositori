@@ -60,6 +60,9 @@ ${css}
 </head>
 <body data-section="home">
 <script>
+${read(SRC("storage-shim.js"))}
+</script>
+<script>
 ${gdpr}
 </script>
 ${read(SRC("body.html"))}

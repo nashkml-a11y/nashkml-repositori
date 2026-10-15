@@ -980,8 +980,9 @@ function titleStart(){
   const go = (ev)=>{
     if($id("gdprOverlay") && !$id("gdprOverlay").classList.contains("hidden")) return;
     if(ev && ev.type==="keydown" && !["Enter"," ","Spacebar"].includes(ev.key)) return;
+    if(t.dataset.go) return; t.dataset.go = "1";
     window.removeEventListener("keydown", go);
-    t.removeEventListener("pointerdown", go);
+    t.removeEventListener("pointerdown", go); t.removeEventListener("click", go);
     if(ev) ev.preventDefault();
     getAudioCtx(); auInit();
     sfx("coin");
@@ -990,10 +991,12 @@ function titleStart(){
     setTimeout(()=>{
       t.remove(); document.body.classList.remove("titleMode");
       bgSyncWorld(); musicPlay(WORLD_KEYS[game.world]||"bosque");
+      if(window.CL_STORAGE_VOLATILE) setTimeout(()=>toast("⚠️ Este visor no permite guardar: la partida se perderá al cerrar. Ábrelo en el navegador para guardar."), 300);
       if(UI.pendingNotice){ UI.pendingNotice = false; setTimeout(()=>{ try{ showSeasonNotice(); }catch(e){} }, 400); }
     }, 520);
   };
   t.addEventListener("pointerdown", go);
+  t.addEventListener("click", go);
   window.addEventListener("keydown", go);
 }
 

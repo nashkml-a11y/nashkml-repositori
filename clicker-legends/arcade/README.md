@@ -19,6 +19,7 @@ Rediseño visual en pixel art de 16 bits de `referencia/Clicker_Legends_TERMINAD
 | Cambio | Motivo |
 |---|---|
 | El juego ya **no da error al arrancar** (`auraById is not defined`). | Los scripts se ensamblan en un solo bloque. Por eso ahora sí se ejecutan dos cosas que el original tenía escritas pero que nunca llegaban a correr: el **aviso de temporada** y la **vuelta al Bosque** cuando el mundo de temporada está fuera de su mes. |
+| Si el visor bloquea `localStorage` (iframes aislados, vista previa de archivos), se usa un almacenamiento en memoria y se avisa de que la partida no se guardará. | El original se detenía al arrancar en esos visores (título sin respuesta). Con almacenamiento normal no cambia nada. |
 | Eliminar mascota usa un modal arcade en vez de `confirm()`. | El propio original avisaba de que `confirm()` no funciona en algunos visores. Dentro del modal se vuelve a comprobar que la copia sigue existiendo antes de borrarla. |
 | El aviso de temporada espera a que se cierre la pantalla de título. | Evita solaparse con ella. |
 | Espacio o Intro equivalen a pulsar el botón en Inicio (se ignora la autorrepetición del teclado); Esc cierra menús. | Manejo de recreativa en escritorio. Ejecuta el mismo `doClick()`. |
@@ -59,6 +60,7 @@ node tools/build.mjs                 # regenera lógica, recursos y dist/
 node tools/build.mjs --skip-assets   # solo código
 node tests/equivalence.mjs           # equivalencia con el original (Playwright + Chromium)
 node tests/perf.mjs <dir>            # fps con ~75 clics/s y aura activa
+node tests/sandbox.mjs               # arranque dentro de un iframe aislado sin localStorage
 ```
 
 Requisitos de construcción: Node 18+, Python 3 con Pillow y numpy, y la fuente `NotoColorEmoji.ttf`.
