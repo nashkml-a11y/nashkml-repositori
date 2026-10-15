@@ -9,7 +9,7 @@ import os, io, json, base64, sys
 import numpy as np
 from PIL import Image
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from pixelize import pixelize, GOLD
+from pixelize import pixelize, pixelize_pro, GOLD
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 A = os.path.join(ROOT, 'assets')
@@ -49,9 +49,23 @@ def main():
     for f in os.listdir(os.path.join(A, 'pets')):
         e = ''.join(chr(int(x, 16)) for x in f[:-4].split('-'))
         out['pets'][e] = ent(Image.open(os.path.join(A, 'pets', f)).convert('RGBA'))
+    # Versión de cuerpo entero cuando Noto la tiene (más cerca de las maquetas)
+    SOURCE = {"🐶": "🐕", "🐱": "🐈", "🐰": "🐇"}
     for e in NOTO_PETS:
-        im = pixelize(e, 42, 18, tint=GOLD if e == '🐫' else None)
-        out['pets'][e] = ent(shade(im))
+        im = pixelize_pro(SOURCE.get(e, e), 44, 14, tint=GOLD if e == '🐫' else None)
+        if e == "🌈":   # Ser Celestial: arcoíris con destellos
+            big = Image.new('RGBA', (im.width + 8, im.height + 6), (0, 0, 0, 0))
+            big.alpha_composite(im, (4, 6))
+            sp = pixelize_pro("✨", 16, 8)
+            big.alpha_composite(sp, (0, 0)); big.alpha_composite(sp, (big.width - sp.width, big.height - sp.height - 2))
+            im = big
+        if e == "🐫":   # Camello Dorado (legendario): destellos para distinguirlo del normal
+            big = Image.new('RGBA', (im.width + 6, im.height + 4), (0, 0, 0, 0))
+            big.alpha_composite(im, (3, 4))
+            sp = pixelize_pro("✨", 14, 8)
+            big.alpha_composite(sp, (big.width - sp.width, 0))
+            im = big
+        out['pets'][e] = ent(im)
     # Iconos de referencia (por nombre y por alias de emoji)
     ref = {}
     for f in os.listdir(os.path.join(A, 'icons_ref')):

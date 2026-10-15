@@ -417,3 +417,16 @@ h3{margin:0 0 4px;font-size:20px}
 body.titleMode .app,body.titleMode .nav{visibility:hidden}
 body.titleMode{overflow:hidden;touch-action:none}
 #titleScreen{touch-action:none;overscroll-behavior:none}
+
+/* ===== Solo móvil ===== */
+html,body{overscroll-behavior:none;touch-action:manipulation}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,select{-webkit-user-select:text;user-select:text}
+img{-webkit-user-drag:none;pointer-events:none}
+#click{-webkit-touch-callout:none}
+#rotateHint{display:none}
+@media (orientation:landscape) and (max-height:500px){
+  #rotateHint{display:flex;position:fixed;inset:0;z-index:9000;background:#08061a;color:#fff;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;font-size:24px}
+  #rotateHint .ph{width:44px;height:76px;border:4px solid #ffd83c;border-radius:6px;animation:rot 1.6s steps(4) infinite}
+}
+@keyframes rot{50%{transform:rotate(-90deg)}}

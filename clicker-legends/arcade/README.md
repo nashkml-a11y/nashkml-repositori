@@ -1,5 +1,7 @@
 # Clicker Legends — Edición Arcade
 
+**Plataforma: solo móvil, en vertical.** Sin zoom con dos toques ni al pellizcar, sin recarga al deslizar hacia abajo, sin menú contextual al mantener pulsado y con aviso para girar el móvil si está en horizontal.
+
 Rediseño visual en pixel art de 16 bits de `referencia/Clicker_Legends_TERMINADO.html`.
 **Las mecánicas no cambian:** la lógica del juego es una copia literal del original.
 
@@ -53,7 +55,7 @@ Sin corregir, porque requieren una decisión de diseño: el logro «Mascota de n
 | Recurso | Origen |
 |---|---|
 | 25 mascotas (Hielo, Volcán, Espacio, Halloween, San Valentín, Verano) | Recortadas de las maquetas de `referencia/visual`, sin fondo y repixeladas (`tools/extract_sprites.py`). |
-| 16 mascotas (Bosque, Desierto, Navidad) | Pixeladas desde Noto Color Emoji (`tools/pixelize.py`). No hay referencia propia. |
+| 16 mascotas (Bosque, Desierto, Navidad) | Pixeladas desde Noto Color Emoji con `pixelize_pro` (`tools/pixelize.py`): contorno coloreado, luz arriba a la izquierda, sombra abajo a la derecha y paleta viva. Perro, Gato y Conejo usan la versión de cuerpo entero; el Ser Celestial y el Camello Dorado llevan destellos. Zorro y Unicornio son cabezas (Noto no tiene versión de cuerpo entero). |
 | Iconos de interfaz | Recortados de las maquetas, o Noto pixelado para el resto de emojis del juego. |
 | Fondos de Volcán, Espacio, Verano y Halloween | Repixelados de las referencias (216×324, 64 colores). |
 | Fondos de Bosque, Desierto, Hielo, Navidad y San Valentín | Generados por código (`tools/gen_backgrounds.py`). |
@@ -81,6 +83,7 @@ node tests/equivalence.mjs           # equivalencia con el original + correccion
 node tests/fixes.mjs                 # verificación de cada corrección
 node tests/perf.mjs <dir>            # fps con ~75 clics/s y aura activa
 node tests/sandbox.mjs               # arranque dentro de un iframe aislado sin localStorage
+node tests/touch.mjs                 # toques reales en móvil emulado (Pixel 7)
 ```
 
 Requisitos de construcción: Node 18+, Python 3 con Pillow y numpy, y la fuente `NotoColorEmoji.ttf`.
